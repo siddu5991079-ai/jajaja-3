@@ -1,10 +1,8 @@
-
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
 const { spawn, execSync } = require('child_process');
-// NAYA: Screen recorder import kiya
 const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 
 const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
@@ -16,6 +14,7 @@ let browser = null;
 let ffmpegProcess = null;
 let lastChunkTime = Date.now();
 
+// 24/7 Infinite Loop
 async function mainLoop() {
     while (true) {
         try {
@@ -33,6 +32,7 @@ async function mainLoop() {
 async function startDirectStreaming() {
     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
 
+    // Start FFmpeg
     ffmpegProcess = spawn('ffmpeg', [
         '-y',
         '-analyzeduration', '100M',
@@ -50,26 +50,16 @@ async function startDirectStreaming() {
         '-b:a', '128k',
         '-ar', '44100',
         '-f', 'flv',
-        'local_buffer.flv' // Aapka local testing buffer
+        'local_buffer.flv' // Testing ke liye. Live karna ho toh RTMP_DESTINATION use karein
     ]);
 
-    ffmpegProcess.stderr.on('data', (data) => {
-        console.log(`[FFmpeg]: ${data.toString()}`);
-    });
+    ffmpegProcess.stderr.on('data', (data) => console.log(`[FFmpeg]: ${data.toString().trim()}`));
+    ffmpegProcess.stdin.on('error', (err) => console.log(`[!] ffmpeg stdin closed (${err.code}). Reconnecting...`));
+    ffmpegProcess.on('close', (code) => console.log(`[*] FFmpeg process exited with code ${code}`));
+    ffmpegProcess.on('error', (err) => console.error('[!] FFmpeg failed to start.', err));
 
-    ffmpegProcess.stdin.on('error', (err) => {
-        console.log(`[!] ffmpeg stdin closed (${err.code}). Reconnecting...`);
-    });
-
-    ffmpegProcess.on('close', (code) => {
-        console.log(`[*] FFmpeg process exited with code ${code}`);
-    });
-
-    ffmpegProcess.on('error', (err) => {
-        console.error('[!] FFmpeg failed to start.', err);
-    });
-
-browser = await puppeteer.launch({
+    // Launch Chrome with Proxy
+    browser = await puppeteer.launch({
         channel: 'chrome',
         headless: false,
         args: [
@@ -78,45 +68,40 @@ browser = await puppeteer.launch({
             '--disable-web-security',
             '--no-sandbox',
             '--disable-setuid-sandbox',
-            '--proxy-server=http://31.59.20.176:6754' // NAYA: Proxy IP aur Port yahan hardcode kar diya hai
+            '--proxy-server=http://31.59.20.176:6754' // Hardcoded Proxy
         ],
-        defaultViewport: { width: 1280, height: 720 }, 
+        defaultViewport: { width: 1280, height: 720 },
     });
 
     const page = await browser.newPage();
 
-    // NAYA: Proxy ke Username aur Password ke zariye authentication
+    // Browser ke andar ki errors Node terminal par dekhne ke liye
+    page.on('console', msg => console.log(`[Browser Console]: ${msg.text()}`));
+
+    // Proxy Authentication
     await page.authenticate({
         username: 'jznxuitn',
         password: '4sp9smus5w8q'
     });
 
-    // Iske baad aapka baqi ka code aayega...
-    // const recorder = new PuppeteerScreenRecorder(page);
-    // await recorder.start('debug_video.mp4');
-    // ...
-
-    // NAYA LOGIC: Screen Recording start karo
+    // Screen Recording Logic (20 Sec Debug)
     const recorder = new PuppeteerScreenRecorder(page);
     await recorder.start('debug_video.mp4');
     console.log('🎥 [*] 20-second Debug Screen Recording Started...');
 
-    // 20 Seconds baad record rok kar GitHub Release mein upload karne ka background timer
     setTimeout(async () => {
         try {
             await recorder.stop();
             console.log('🛑 [*] Screen recording stopped. Uploading to GitHub Releases...');
-            
             const tagName = `debug-video-${Date.now()}`;
-            // GitHub CLI ka use karke release create karna
             execSync(`gh release create ${tagName} debug_video.mp4 --title "Debug Record: ${tagName}" --notes "Automated 20 seconds Chrome recording check."`, { stdio: 'inherit' });
-            
             console.log('✅ [+] Successfully uploaded video to GitHub Releases!');
         } catch (err) {
-            console.error('❌ [!] Failed to upload debug video to GitHub:', err.message);
+            console.error('❌ [!] Failed to upload debug video:', err.message);
         }
-    }, 20000); // 20,000 ms = 20 seconds
+    }, 20000);
 
+    // Node bridge for chunks
     await page.exposeFunction('streamChunkToNode', async (base64Chunk) => {
         lastChunkTime = Date.now();
         if (ffmpegProcess && ffmpegProcess.stdin && ffmpegProcess.exitCode === null) {
@@ -129,22 +114,27 @@ browser = await puppeteer.launch({
         }
     });
 
-    console.log(`[*] Navigating to ${TARGET_URL}...`);
+    // NAYA: Browser se instant restart trigger karne ka bridge
+    await page.exposeFunction('triggerInstantRestart', async (reason) => {
+        console.log(`\n🚨 [ALERT] In-Browser Detector Triggered: ${reason}`);
+        console.log(`[*] Forcefully closing browser to initiate instant restart...`);
+        if (browser) await browser.close().catch(() => {});
+    });
 
+    console.log(`[*] Navigating to ${TARGET_URL}...`);
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36');
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    console.log('[*] Waiting for potential Cloudflare Turnstile to securely resolve itself...');
+    console.log('[*] Waiting for potential Cloudflare...');
     for (let i = 0; i < 15; i++) {
         const title = await page.title();
         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
         await new Promise(r => setTimeout(r, 1000));
     }
 
-    console.log('[*] Waiting for iframes to load natively...');
     await new Promise(resolve => setTimeout(resolve, 8000));
 
-    console.log('[*] Cleaning up ad elements across all frames...');
+    console.log('[*] Cleaning up ads...');
     for (const frame of page.frames()) {
         try {
             await frame.evaluate(() => {
@@ -154,7 +144,6 @@ browser = await puppeteer.launch({
         } catch (e) { }
     }
 
-    console.log('[*] Searching all iframes for the target video element...');
     let targetFrame = null;
     for (const frame of page.frames()) {
         try {
@@ -167,11 +156,7 @@ browser = await puppeteer.launch({
         } catch (e) { }
     }
 
-    if (!targetFrame) {
-        throw new Error('No <video> element could be found.');
-    }
-
-    console.log('[*] Injecting LIVE MediaRecorder streaming logic...');
+    if (!targetFrame) throw new Error('No <video> element could be found.');
 
     try {
         const iframeElement = await targetFrame.frameElement();
@@ -181,10 +166,10 @@ browser = await puppeteer.launch({
             console.log('[*] Succeeded in clicking the exact center of the video player.');
         }
     } catch (e) {
-        console.log('[!] Overlay physical click failed, attempting standard DOM click...');
         try { await targetFrame.click('video'); } catch (err) { }
     }
 
+    // In-Browser Injection
     await targetFrame.evaluate(async () => {
         const video = document.querySelector('video');
         if (!video) throw new Error('No <video> element found.');
@@ -225,6 +210,33 @@ browser = await puppeteer.launch({
 
         await new Promise(r => setTimeout(r, 1000));
 
+        // NAYA CODE: Error & Freeze Detector
+        setInterval(() => {
+            try {
+                const bodyText = document.body.innerText || "";
+                
+                // 1. Error Code Check (0x50014, etc.)
+                if (bodyText.includes('0x50014') || bodyText.includes('Error')) {
+                    if (window.triggerInstantRestart) window.triggerInstantRestart("Player Error 0x50014 Detected");
+                    return;
+                }
+
+                // 2. Video Freeze Check
+                if (video) {
+                    if (window.lastVideoTime === undefined) window.lastVideoTime = -1;
+                    if (video.currentTime === window.lastVideoTime && video.readyState > 0) {
+                        window.frozenCount = (window.frozenCount || 0) + 1;
+                        if (window.frozenCount > 5) { // 25 seconds of freeze
+                            if (window.triggerInstantRestart) window.triggerInstantRestart("Video completely frozen");
+                        }
+                    } else {
+                        window.frozenCount = 0;
+                    }
+                    window.lastVideoTime = video.currentTime;
+                }
+            } catch (e) {}
+        }, 5000);
+
         const options = { mimeType: 'video/webm; codecs=vp8,opus' };
         const recorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(options.mimeType) ? options : undefined);
 
@@ -239,9 +251,7 @@ browser = await puppeteer.launch({
                 try {
                     const base64Data = await new Promise((resolve) => {
                         const reader = new FileReader();
-                        reader.onloadend = () => {
-                            resolve(reader.result.split('base64,')[1]);
-                        };
+                        reader.onloadend = () => resolve(reader.result.split('base64,')[1]);
                         reader.readAsDataURL(blob);
                     });
                     if (window.streamChunkToNode) {
@@ -266,11 +276,15 @@ browser = await puppeteer.launch({
         return true;
     });
 
+    // Node Watchdog
     lastChunkTime = Date.now();
     console.log('[*] Engine successfully connected! Monitoring stream health...');
     while (true) {
-        if (Date.now() - lastChunkTime > 20000) {
-            throw new Error("Stream dropped: No video chunks received from browser for 20 seconds.");
+        if (!browser || !browser.isConnected()) {
+            throw new Error("Browser was closed intentionally by Detector.");
+        }
+        if (Date.now() - lastChunkTime > 60000) {
+            throw new Error("Stream dropped: No video chunks received from browser for 60 seconds.");
         }
         await new Promise(r => setTimeout(r, 2000));
     }
@@ -298,8 +312,8 @@ process.on('SIGINT', async () => {
     process.exit(0);
 });
 
+// Boot
 mainLoop();
-
 
 
 
