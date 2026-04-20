@@ -58,31 +58,43 @@ async function startDirectStreaming() {
     ffmpegProcess.on('close', (code) => console.log(`[*] FFmpeg process exited with code ${code}`));
     ffmpegProcess.on('error', (err) => console.error('[!] FFmpeg failed to start.', err));
 
-    // Launch Chrome with Proxy
+    // ==========================================
+    // NAYA CHROME LAUNCH LOGIC (HUMAN-LIKE)
+    // ==========================================
+    const proxyIpPort = '31.59.20.176:6754';
+    const proxyUser = 'jznxuitn';
+    const proxyPass = '4sp9smus5w8q';
+
+    console.log("Launching Browser on GitHub Actions Virtual Screen with Proxy...");
     browser = await puppeteer.launch({
         channel: 'chrome',
-        headless: false,
-        args: [
-            '--start-maximized',
-            '--autoplay-policy=no-user-gesture-required',
-            '--disable-web-security',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--proxy-server=http://31.59.20.176:6754' // Hardcoded Proxy
-        ],
+        headless: false, // Xvfb par render karne ke liye false
         defaultViewport: { width: 1280, height: 720 },
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-web-security',
+            '--disable-features=IsolateOrigins,site-per-process', // Yeh iframes aur Cloudflare ko bypass karne mein madad karega
+            '--window-size=1280,720',
+            '--autoplay-policy=no-user-gesture-required',
+            `--proxy-server=http://${proxyIpPort}`
+        ]
     });
 
     const page = await browser.newPage();
-
-    // Browser ke andar ki errors Node terminal par dekhne ke liye
     page.on('console', msg => console.log(`[Browser Console]: ${msg.text()}`));
 
     // Proxy Authentication
     await page.authenticate({
-        username: 'jznxuitn',
-        password: '4sp9smus5w8q'
+        username: proxyUser,
+        password: proxyPass
     });
+    console.log("Proxy credentials applied successfully.");
+
+    // User-Agent wahi set kiya jo aapke doosre project mein human jaisa detect hota hai
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+
+    // ==========================================
 
     // Screen Recording Logic (20 Sec Debug)
     const recorder = new PuppeteerScreenRecorder(page);
@@ -114,15 +126,13 @@ async function startDirectStreaming() {
         }
     });
 
-    // NAYA: Browser se instant restart trigger karne ka bridge
     await page.exposeFunction('triggerInstantRestart', async (reason) => {
         console.log(`\n🚨 [ALERT] In-Browser Detector Triggered: ${reason}`);
         console.log(`[*] Forcefully closing browser to initiate instant restart...`);
         if (browser) await browser.close().catch(() => {});
     });
 
-    console.log(`[*] Navigating to ${TARGET_URL}...`);
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36');
+    console.log(`[*] Navigating to target URL using Proxy...`);
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     console.log('[*] Waiting for potential Cloudflare...');
@@ -162,6 +172,8 @@ async function startDirectStreaming() {
         const iframeElement = await targetFrame.frameElement();
         const box = await iframeElement.boundingBox();
         if (box) {
+            await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2), { steps: 15 });
+            await new Promise(r => setTimeout(r, 1000)); 
             await page.mouse.click(box.x + (box.width / 2), box.y + (box.height / 2));
             console.log('[*] Succeeded in clicking the exact center of the video player.');
         }
@@ -214,19 +226,16 @@ async function startDirectStreaming() {
         setInterval(() => {
             try {
                 const bodyText = document.body.innerText || "";
-                
-                // 1. Error Code Check (0x50014, etc.)
                 if (bodyText.includes('0x50014') || bodyText.includes('Error')) {
                     if (window.triggerInstantRestart) window.triggerInstantRestart("Player Error 0x50014 Detected");
                     return;
                 }
 
-                // 2. Video Freeze Check
                 if (video) {
                     if (window.lastVideoTime === undefined) window.lastVideoTime = -1;
                     if (video.currentTime === window.lastVideoTime && video.readyState > 0) {
                         window.frozenCount = (window.frozenCount || 0) + 1;
-                        if (window.frozenCount > 5) { // 25 seconds of freeze
+                        if (window.frozenCount > 5) {
                             if (window.triggerInstantRestart) window.triggerInstantRestart("Video completely frozen");
                         }
                     } else {
