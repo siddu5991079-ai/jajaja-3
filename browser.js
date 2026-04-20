@@ -69,7 +69,7 @@ async function startDirectStreaming() {
         console.error('[!] FFmpeg failed to start.', err);
     });
 
-    browser = await puppeteer.launch({
+browser = await puppeteer.launch({
         channel: 'chrome',
         headless: false,
         args: [
@@ -77,12 +77,24 @@ async function startDirectStreaming() {
             '--autoplay-policy=no-user-gesture-required',
             '--disable-web-security',
             '--no-sandbox',
-            '--disable-setuid-sandbox'
+            '--disable-setuid-sandbox',
+            '--proxy-server=http://31.59.20.176:6754' // NAYA: Proxy IP aur Port yahan hardcode kar diya hai
         ],
-        defaultViewport: { width: 1280, height: 720 }, // Video recording ke liye resolution set karna zaroori hai
+        defaultViewport: { width: 1280, height: 720 }, 
     });
 
     const page = await browser.newPage();
+
+    // NAYA: Proxy ke Username aur Password ke zariye authentication
+    await page.authenticate({
+        username: 'jznxuitn',
+        password: '4sp9smus5w8q'
+    });
+
+    // Iske baad aapka baqi ka code aayega...
+    // const recorder = new PuppeteerScreenRecorder(page);
+    // await recorder.start('debug_video.mp4');
+    // ...
 
     // NAYA LOGIC: Screen Recording start karo
     const recorder = new PuppeteerScreenRecorder(page);
