@@ -71,7 +71,7 @@ async function startDirectStreaming() {
         headless: false, // Xvfb par render karne ke liye false
         defaultViewport: { width: 1280, height: 720 },
         args: [
-            '--no-sandbox', 
+            '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-web-security',
             '--disable-features=IsolateOrigins,site-per-process', // Yeh iframes aur Cloudflare ko bypass karne mein madad karega
@@ -82,7 +82,30 @@ async function startDirectStreaming() {
     });
 
     const page = await browser.newPage();
-    page.on('console', msg => console.log(`[Browser Console]: ${msg.text()}`));
+    page.on('console', msg => {
+        const text = msg.text();
+        console.log(`[Browser Console]: ${text}`);
+        if (text.includes('0x50014') || (text.includes('status of 403') && text.includes('Failed to load resource'))) {
+            console.log(`\n🚨 [ALERT] Error code 0x50014 or 403 detected in console!`);
+            if (browser && browser.isConnected()) {
+                console.log(`[*] Forcefully closing browser to initiate instant restart...`);
+                browser.close().catch(() => {});
+            }
+        }
+    });
+
+    page.on('response', response => {
+        if (response.status() === 403 || response.status() === 404) {
+            const url = response.url();
+            if (url.includes('.m3u8') || url.includes('.ts')) {
+                console.log(`\n🚨 [ALERT] Blocked (${response.status()}) detected for media sequence: ${url}`);
+                if (browser && browser.isConnected()) {
+                    console.log(`[*] Forcefully closing browser to initiate instant restart...`);
+                    browser.close().catch(() => {});
+                }
+            }
+        }
+    });
 
     // Proxy Authentication
     await page.authenticate({
@@ -113,9 +136,12 @@ async function startDirectStreaming() {
         }
     }, 20000);
 
+    let initialChunksReceived = false;
+
     // Node bridge for chunks
     await page.exposeFunction('streamChunkToNode', async (base64Chunk) => {
         lastChunkTime = Date.now();
+        initialChunksReceived = true;
         if (ffmpegProcess && ffmpegProcess.stdin && ffmpegProcess.exitCode === null) {
             try {
                 const buffer = Buffer.from(base64Chunk, 'base64');
@@ -129,7 +155,7 @@ async function startDirectStreaming() {
     await page.exposeFunction('triggerInstantRestart', async (reason) => {
         console.log(`\n🚨 [ALERT] In-Browser Detector Triggered: ${reason}`);
         console.log(`[*] Forcefully closing browser to initiate instant restart...`);
-        if (browser) await browser.close().catch(() => {});
+        if (browser) await browser.close().catch(() => { });
     });
 
     console.log(`[*] Navigating to target URL using Proxy...`);
@@ -173,7 +199,7 @@ async function startDirectStreaming() {
         const box = await iframeElement.boundingBox();
         if (box) {
             await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2), { steps: 15 });
-            await new Promise(r => setTimeout(r, 1000)); 
+            await new Promise(r => setTimeout(r, 1000));
             await page.mouse.click(box.x + (box.width / 2), box.y + (box.height / 2));
             console.log('[*] Succeeded in clicking the exact center of the video player.');
         }
@@ -243,7 +269,7 @@ async function startDirectStreaming() {
                     }
                     window.lastVideoTime = video.currentTime;
                 }
-            } catch (e) {}
+            } catch (e) { }
         }, 5000);
 
         const options = { mimeType: 'video/webm; codecs=vp8,opus' };
@@ -292,7 +318,14 @@ async function startDirectStreaming() {
         if (!browser || !browser.isConnected()) {
             throw new Error("Browser was closed intentionally by Detector.");
         }
-        if (Date.now() - lastChunkTime > 60000) {
+        
+        const timeSinceLastChunk = Date.now() - lastChunkTime;
+        
+        if (!initialChunksReceived && timeSinceLastChunk > 15000) {
+             throw new Error("Stream dropped: No initial video chunks received within 15 seconds. Player might be frozen or 0x50014 errored.");
+        }
+        
+        if (timeSinceLastChunk > 60000) {
             throw new Error("Stream dropped: No video chunks received from browser for 60 seconds.");
         }
         await new Promise(r => setTimeout(r, 2000));
