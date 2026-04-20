@@ -1,0 +1,31 @@
+name: 24/7 Live Stream Bot
+
+on:
+  workflow_dispatch: # Aapko manual start/stop ka button dega
+  schedule:
+    - cron: '0 */5 * * *' # Har 5 ghante baad server refresh karega (No downtime)
+
+jobs:
+  stream:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Get Code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install FFmpeg & Virtual Display (Xvfb)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg xvfb
+
+    - name: Install Required Packages
+      run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth
+
+    - name: Start Live Stream
+      # xvfb-run server par ek nakli screen banata hai taake Puppeteer headless:false chal sake
+      run: xvfb-run --auto-servernum node browser.js
