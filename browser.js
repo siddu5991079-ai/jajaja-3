@@ -130,6 +130,11 @@ async function startDirectStreaming() {
 
     let initialChunksReceived = false;
 
+    // Direct logging bridge for Cross-Origin iframes
+    await page.exposeFunction('logToNode', (msg) => {
+        console.log(`[Inside Player]: ${msg}`);
+    });
+
     // Node bridge for chunks
     await page.exposeFunction('streamChunkToNode', async (base64Chunk) => {
         lastChunkTime = Date.now();
@@ -242,13 +247,17 @@ async function startDirectStreaming() {
         if (!video) throw new Error('No <video> element found.');
 
         video.muted = false;
-        await video.play().catch(e => console.log('[Player Debug] Auto-play explicitly blocked or failed:', e));
+        await video.play().catch(e => {
+            if(window.logToNode) window.logToNode(`Auto-play explicitly blocked or failed: ${e.message}`);
+        });
 
         await new Promise((resolve, reject) => {
             let elapsed = 0;
             const interval = setInterval(() => {
                 elapsed += 500;
-                if (elapsed % 5000 === 0) console.log(`[Player Debug] Waiting for video load... ReadyState: ${video.readyState}, Width: ${video.videoWidth}, Paused: ${video.paused}`);
+                if (elapsed % 5000 === 0 && window.logToNode) {
+                    window.logToNode(`Waiting for video load... ReadyState: ${video.readyState}, Width: ${video.videoWidth}, Paused: ${video.paused}`);
+                }
                 
                 if (video.videoWidth > 0 && video.readyState >= 3) {
                     clearInterval(interval);
@@ -290,9 +299,12 @@ async function startDirectStreaming() {
 
                 if (video) {
                     if (window.lastVideoTime === undefined) window.lastVideoTime = -1;
-                    console.log(`[Player Debug Health] Time: ${video.currentTime.toFixed(2)}, Paused: ${video.paused}, ReadyState: ${video.readyState}, Muted: ${video.muted}, NetworkState: ${video.networkState}`);
+                    if(window.logToNode && video.currentTime !== window.lastVideoTime) {
+                         // Only spam logs if time is frozen, otherwise keep it quiet
+                    }
                     
                     if (video.currentTime === window.lastVideoTime && video.readyState > 0) {
+                        if(window.logToNode) window.logToNode(`WARNING: Video is FROZEN! Time: ${video.currentTime.toFixed(2)}, Paused: ${video.paused}, ReadyState: ${video.readyState}, NetworkState: ${video.networkState}`);
                         window.frozenCount = (window.frozenCount || 0) + 1;
                         if (window.frozenCount > 5) {
                             if (window.triggerInstantRestart) window.triggerInstantRestart("Video completely frozen");
@@ -326,7 +338,7 @@ async function startDirectStreaming() {
                         await window.streamChunkToNode(base64Data);
                     }
                 } catch (e) {
-                    console.log('Chunk processing error:', e);
+                    if(window.logToNode) window.logToNode(`Chunk processing error: ${e.message}`);
                 }
             }
             isProcessing = false;
@@ -334,20 +346,22 @@ async function startDirectStreaming() {
 
         recorder.ondataavailable = (event) => {
             if (event.data) {
-                console.log(`[MediaRecorder] Chunk received: size=${event.data.size} bytes`);
+                if(window.logToNode) window.logToNode(`Chunk received: size=${event.data.size} bytes`);
                 if (event.data.size > 0) {
                     chunkQueue.push(event.data);
-                    processQueue().catch(e => console.log('[MediaRecorder] ProcessQueue Error:', e));
+                    processQueue().catch(e => {
+                        if(window.logToNode) window.logToNode(`ProcessQueue Error: ${e.message}`);
+                    });
                 } else {
-                    console.log('[MediaRecorder] Warning: Empty chunk (0 bytes) received from stream.');
+                    if(window.logToNode) window.logToNode('Warning: Empty chunk (0 bytes) received from stream.');
                 }
             } else {
-                console.log('[MediaRecorder] Warning: ondataavailable triggered but event.data is missing!');
+                if(window.logToNode) window.logToNode('Warning: ondataavailable triggered but event.data is missing!');
             }
         };
 
         recorder.start(1000);
-        console.log('[MediaRecorder] LIVE Streaming effectively started successfully! Requested 1000ms chunks.');
+        if(window.logToNode) window.logToNode('LIVE Streaming effectively started successfully! Requested 1000ms chunks.');
         return true;
     });
 
