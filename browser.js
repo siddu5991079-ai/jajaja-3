@@ -128,56 +128,8 @@ async function startDirectStreaming() {
         }
     }, 20000);
 
-    let initialChunksReceived = false;
-
-    // Direct logging bridge for Cross-Origin iframes
-    await page.exposeFunction('logToNode', (msg) => {
-        console.log(`[Inside Player]: ${msg}`);
-    });
-
-    // Node bridge for chunks
-    await page.exposeFunction('streamChunkToNode', async (base64Chunk) => {
-        lastChunkTime = Date.now();
-        
-        if (!initialChunksReceived) {
-            initialChunksReceived = true;
-            console.log('[*] First media chunk received! Starting FFmpeg now...');
-            
-            ffmpegProcess = spawn('ffmpeg', [
-                '-y',
-                '-analyzeduration', '100M',
-                '-probesize', '100M',
-                '-f', 'webm',
-                '-i', 'pipe:0',
-                '-c:v', 'libx264',
-                '-preset', 'veryfast',
-                '-maxrate', '3000k',
-                '-bufsize', '6000k',
-                '-pix_fmt', 'yuv420p',
-                '-r', '30',
-                '-g', '60',
-                '-c:a', 'aac',
-                '-b:a', '128k',
-                '-ar', '44100',
-                '-f', 'flv',
-                'local_buffer.flv' // Testing ke liye. Live karna ho toh RTMP_DESTINATION use karein
-            ]);
-
-            ffmpegProcess.stderr.on('data', (data) => console.log(`[FFmpeg]: ${data.toString().trim()}`));
-            ffmpegProcess.stdin.on('error', (err) => console.log(`[!] ffmpeg stdin closed (${err.code}).`));
-            ffmpegProcess.on('close', (code) => console.log(`[*] FFmpeg process exited with code ${code}`));
-            ffmpegProcess.on('error', (err) => console.error('[!] FFmpeg failed to start.', err));
-        }
-
-        if (ffmpegProcess && ffmpegProcess.stdin && ffmpegProcess.exitCode === null) {
-            try {
-                const buffer = Buffer.from(base64Chunk, 'base64');
-                ffmpegProcess.stdin.write(buffer, (err) => {
-                    if (err) console.error("FFmpeg write cleanly dropped:", err.message);
-                });
-            } catch (err) { }
-        }
-    });
+    // Get Xvfb display number, usually provided by xvfb-run
+    const displayNum = process.env.DISPLAY || ':99';
 
     await page.exposeFunction('triggerInstantRestart', async (reason) => {
         console.log(`\n🚨 [ALERT] In-Browser Detector Triggered: ${reason}`);
@@ -241,52 +193,40 @@ async function startDirectStreaming() {
         try { await targetFrame.click('video'); } catch (err) { }
     }
 
-    // In-Browser Injection
+    // In-Browser Injection: Force Fullscreen & Play
     await targetFrame.evaluate(async () => {
         const video = document.querySelector('video');
         if (!video) throw new Error('No <video> element found.');
 
-        video.muted = false;
-        await video.play().catch(e => {
-            if(window.logToNode) window.logToNode(`Auto-play explicitly blocked or failed: ${e.message}`);
-        });
+        video.muted = false; // Unmute so audio flows to PulseAudio
+        await video.play().catch(e => console.log('[Player Debug] Auto-play manually blocked/failed:', e));
 
         await new Promise((resolve, reject) => {
             let elapsed = 0;
             const interval = setInterval(() => {
                 elapsed += 500;
-                if (elapsed % 5000 === 0 && window.logToNode) {
-                    window.logToNode(`Waiting for video load... ReadyState: ${video.readyState}, Width: ${video.videoWidth}, Paused: ${video.paused}`);
-                }
                 
                 if (video.videoWidth > 0 && video.readyState >= 3) {
                     clearInterval(interval);
                     resolve();
                 } else if (elapsed > 60000) {
                     clearInterval(interval);
-                    reject(new Error('Timeout: Video took longer than 60 seconds to load dimensions.'));
+                    reject(new Error('Timeout: Video took longer than 60 seconds to populate.'));
                 }
             }, 500);
         });
 
-        let stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
-
-        await new Promise((resolve, reject) => {
-            let elapsed = 0;
-            const trackInterval = setInterval(() => {
-                elapsed += 500;
-                const tracks = stream.getVideoTracks();
-                if (tracks.length > 0 && tracks[0].readyState === 'live') {
-                    clearInterval(trackInterval);
-                    resolve();
-                } else if (elapsed > 20000) {
-                    clearInterval(trackInterval);
-                    reject(new Error('Timeout: Video stream tracks never populated.'));
-                }
-            }, 500);
-        });
-
-        await new Promise(r => setTimeout(r, 1000));
+        // Force CSS Fullscreen fallback on the video
+        try {
+            video.style.position = 'fixed';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.width = '100vw';
+            video.style.height = '100vh';
+            video.style.zIndex = '999999';
+            video.style.backgroundColor = 'black';
+            video.style.objectFit = 'contain';
+        } catch(e) {}
 
         // NAYA CODE: Error & Freeze Detector
         setInterval(() => {
@@ -299,14 +239,9 @@ async function startDirectStreaming() {
 
                 if (video) {
                     if (window.lastVideoTime === undefined) window.lastVideoTime = -1;
-                    if(window.logToNode && video.currentTime !== window.lastVideoTime) {
-                         // Only spam logs if time is frozen, otherwise keep it quiet
-                    }
-                    
-                    if (video.currentTime === window.lastVideoTime && video.readyState > 0) {
-                        if(window.logToNode) window.logToNode(`WARNING: Video is FROZEN! Time: ${video.currentTime.toFixed(2)}, Paused: ${video.paused}, ReadyState: ${video.readyState}, NetworkState: ${video.networkState}`);
+                    if (video.currentTime === window.lastVideoTime && video.readyState > 0 && !video.paused) {
                         window.frozenCount = (window.frozenCount || 0) + 1;
-                        if (window.frozenCount > 5) {
+                        if (window.frozenCount > 8) {
                             if (window.triggerInstantRestart) window.triggerInstantRestart("Video completely frozen");
                         }
                     } else {
@@ -317,70 +252,57 @@ async function startDirectStreaming() {
             } catch (e) { }
         }, 5000);
 
-        const options = { mimeType: 'video/webm; codecs=vp8,opus' };
-        const recorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(options.mimeType) ? options : undefined);
-
-        let chunkQueue = [];
-        let isProcessing = false;
-
-        async function processQueue() {
-            if (isProcessing) return;
-            isProcessing = true;
-            while (chunkQueue.length > 0) {
-                const blob = chunkQueue.shift();
-                try {
-                    const base64Data = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result.split('base64,')[1]);
-                        reader.readAsDataURL(blob);
-                    });
-                    if (window.streamChunkToNode) {
-                        await window.streamChunkToNode(base64Data);
-                    }
-                } catch (e) {
-                    if(window.logToNode) window.logToNode(`Chunk processing error: ${e.message}`);
-                }
-            }
-            isProcessing = false;
-        }
-
-        recorder.ondataavailable = (event) => {
-            if (event.data) {
-                if(window.logToNode) window.logToNode(`Chunk received: size=${event.data.size} bytes`);
-                if (event.data.size > 0) {
-                    chunkQueue.push(event.data);
-                    processQueue().catch(e => {
-                        if(window.logToNode) window.logToNode(`ProcessQueue Error: ${e.message}`);
-                    });
-                } else {
-                    if(window.logToNode) window.logToNode('Warning: Empty chunk (0 bytes) received from stream.');
-                }
-            } else {
-                if(window.logToNode) window.logToNode('Warning: ondataavailable triggered but event.data is missing!');
-            }
-        };
-
-        recorder.start(1000);
-        if(window.logToNode) window.logToNode('LIVE Streaming effectively started successfully! Requested 1000ms chunks.');
         return true;
     });
 
+    console.log('[*] Video playing! Spawning FFmpeg to capture X11 Display & PulseAudio...');
+
+    ffmpegProcess = spawn('ffmpeg', [
+        '-y',
+        '-thread_queue_size', '1024',
+        '-f', 'x11grab',
+        '-video_size', '1280x720',
+        '-framerate', '30',
+        '-i', displayNum,
+        '-thread_queue_size', '1024',
+        '-f', 'pulse',
+        '-i', 'default',
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',  // Important to prevent CPU maxout on GH Actions
+        '-maxrate', '3000k',
+        '-bufsize', '6000k',
+        '-pix_fmt', 'yuv420p',
+        '-g', '60',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-f', 'flv',
+        RTMP_DESTINATION
+    ]);
+
+    ffmpegProcess.stderr.on('data', (data) => {
+        const output = data.toString().trim();
+        // Log periodically to avoid massive github logs, but show critical debug
+        if (output.includes('frame=') && output.includes('fps=')) {
+            // print as a single overriding line in terminal if possible
+            process.stdout.write(`\r[FFmpeg Heartbeat]: ${output.substring(0, 100)}`);
+        } else if (output.includes('Error') || output.includes('Failed')) {
+            console.log(`\n[FFmpeg Issue]: ${output}`);
+        }
+    });
+
+    ffmpegProcess.stdin.on('error', (err) => console.log(`\n[!] ffmpeg stdin closed (${err.code}).`));
+    ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
+    ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
+
     // Node Watchdog
-    lastChunkTime = Date.now();
-    console.log('[*] Engine successfully connected! Monitoring stream health...');
+    console.log('\n[*] Engine successfully connected! Monitoring stream health via FFmpeg heartbeat...');
     while (true) {
         if (!browser || !browser.isConnected()) {
             throw new Error("Browser was closed intentionally by Detector.");
         }
-
-        const timeSinceLastChunk = Date.now() - lastChunkTime;
-
-        if (!initialChunksReceived && timeSinceLastChunk > 15000) {
-            throw new Error("Stream dropped: No initial video chunks received within 15 seconds. Player might be frozen or 0x50014 errored.");
-        }
-
-        if (timeSinceLastChunk > 60000) {
-            throw new Error("Stream dropped: No video chunks received from browser for 60 seconds.");
+        if (!ffmpegProcess || ffmpegProcess.exitCode !== null) {
+            throw new Error("FFmpeg process died unexpectedly.");
         }
         await new Promise(r => setTimeout(r, 2000));
     }
