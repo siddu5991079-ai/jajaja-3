@@ -32,21 +32,28 @@ jobs:
       with:
         node-version: '18'
 
-    - name: Install FFmpeg & Virtual Display (Xvfb)
+    - name: Install FFmpeg, Virtual Display, & Audio Server
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg xvfb
+        sudo apt-get install -y ffmpeg xvfb pulseaudio dbus-x11
 
     - name: Install Required Packages
       # NAYA: puppeteer-screen-recorder install add kiya gaya hai
       run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth puppeteer-screen-recorder
 
     - name: Start Live Stream
-      # NAYA: GitHub Token provide karna zaroori hai taakey node script GitHub Release upload kar sake
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         USE_PROXY: ${{ github.event.inputs.use_proxy || 'OFF' }}
-      run: xvfb-run --auto-servernum node browser.js
+      run: |
+        # Start headless audio server for FFmpeg to capture
+        pulseaudio -D --exit-idle-time=-1
+        pacmd load-module module-virtual-sink sink_name=v1
+        pacmd set-default-sink v1
+        pacmd set-default-source v1.monitor
+
+        # Run Chromium inside a Virtual Monitor with exact 1280x720 HD resolution
+        xvfb-run -s "-screen 0 1280x720x24 -ac" node browser.js
 
 
 
