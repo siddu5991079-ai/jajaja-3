@@ -242,12 +242,14 @@ async function startDirectStreaming() {
         if (!video) throw new Error('No <video> element found.');
 
         video.muted = false;
-        await video.play().catch(e => console.log('Auto-play blocked or failed:', e));
+        await video.play().catch(e => console.log('[Player Debug] Auto-play explicitly blocked or failed:', e));
 
         await new Promise((resolve, reject) => {
             let elapsed = 0;
             const interval = setInterval(() => {
                 elapsed += 500;
+                if (elapsed % 5000 === 0) console.log(`[Player Debug] Waiting for video load... ReadyState: ${video.readyState}, Width: ${video.videoWidth}, Paused: ${video.paused}`);
+                
                 if (video.videoWidth > 0 && video.readyState >= 3) {
                     clearInterval(interval);
                     resolve();
@@ -288,6 +290,8 @@ async function startDirectStreaming() {
 
                 if (video) {
                     if (window.lastVideoTime === undefined) window.lastVideoTime = -1;
+                    console.log(`[Player Debug Health] Time: ${video.currentTime.toFixed(2)}, Paused: ${video.paused}, ReadyState: ${video.readyState}, Muted: ${video.muted}, NetworkState: ${video.networkState}`);
+                    
                     if (video.currentTime === window.lastVideoTime && video.readyState > 0) {
                         window.frozenCount = (window.frozenCount || 0) + 1;
                         if (window.frozenCount > 5) {
@@ -329,14 +333,21 @@ async function startDirectStreaming() {
         }
 
         recorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-                chunkQueue.push(event.data);
-                processQueue();
+            if (event.data) {
+                console.log(`[MediaRecorder] Chunk received: size=${event.data.size} bytes`);
+                if (event.data.size > 0) {
+                    chunkQueue.push(event.data);
+                    processQueue().catch(e => console.log('[MediaRecorder] ProcessQueue Error:', e));
+                } else {
+                    console.log('[MediaRecorder] Warning: Empty chunk (0 bytes) received from stream.');
+                }
+            } else {
+                console.log('[MediaRecorder] Warning: ondataavailable triggered but event.data is missing!');
             }
         };
 
         recorder.start(1000);
-        console.log('LIVE Streaming started successfully with active tracks!');
+        console.log('[MediaRecorder] LIVE Streaming effectively started successfully! Requested 1000ms chunks.');
         return true;
     });
 
