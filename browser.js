@@ -166,7 +166,7 @@ async function startDirectStreaming() {
 
     console.log('[*] Executing GitHub Logs Debugging & Fullscreen Script...');
     
-    // NEW: Iframe ke andar ke logs collect kar ke Node.js ko wapas bhejenge
+    // Iframe ke andar ke logs collect kar ke Node.js ko wapas bhejenge
     const debugLogs = await targetFrame.evaluate(async () => {
         let terminalLogs = [];
         terminalLogs.push("\n=======================================================");
@@ -175,7 +175,6 @@ async function startDirectStreaming() {
         
         const vid = document.querySelector('video');
         
-        // 1. Check if Video Exists
         if (vid) {
             terminalLogs.push("✅ STEP 1: YES! document.querySelector('video') mil gaya hai.");
         } else {
@@ -183,7 +182,6 @@ async function startDirectStreaming() {
             return terminalLogs;
         }
 
-        // 2. Try Native Fullscreen API
         terminalLogs.push("⏳ STEP 2: Native requestFullscreen() apply kar rahe hain...");
         try {
             if (vid.requestFullscreen) {
@@ -193,11 +191,9 @@ async function startDirectStreaming() {
             }
             terminalLogs.push("🎉 RESULT: requestFullscreen() SUCCESS! Browser ne allow kar diya.");
         } catch (err) {
-            // Agar HTML5 fullscreen block ho jaye
             terminalLogs.push("❌ RESULT: requestFullscreen() FAILED.");
             terminalLogs.push("⚠️ REASON: " + err.name + " - " + err.message);
             
-            // 3. Fallback: Force CSS Stretch so stream doesn't look bad
             terminalLogs.push("🛠️ STEP 3: CSS Force-Stretch Hack apply kar rahe hain...");
             vid.style.position = 'fixed';
             vid.style.top = '0';
@@ -249,11 +245,35 @@ async function startDirectStreaming() {
         RTMP_DESTINATION 
     ]);
 
+    // 🚀 LOG THROTTLER - GitHub Action Memory Saver
+    let heartbeatCount = 0;
+    let lastHeartbeatTime = 0;
+    const FIVE_MINUTES = 5 * 60 * 1000; // 5 minutes in milliseconds
+
     ffmpegProcess.stderr.on('data', (data) => {
         const output = data.toString().trim();
+        
         if (output.includes('frame=') && output.includes('fps=')) {
-            process.stdout.write(`\r[FFmpeg Heartbeat]: ${output.substring(0, 100)}`);
-        } else if (output.includes('Error') || output.includes('Failed')) {
+            heartbeatCount++;
+            const currentTime = Date.now();
+
+            // Pehle 7 heartbeats ko print karein
+            if (heartbeatCount <= 7) {
+                console.log(`[FFmpeg Heartbeat ${heartbeatCount}/7]: ${output.substring(0, 120)}`);
+                
+                if (heartbeatCount === 7) {
+                    lastHeartbeatTime = currentTime;
+                    console.log(`\n[✅ Success] Initial stream check passed! Now suppressing logs to save GitHub Action memory. Next heartbeat in 5 minutes...\n`);
+                }
+            } 
+            // 7 ke baad sirf tab print karein jab 5 minute guzar chuke hon
+            else if (currentTime - lastHeartbeatTime >= FIVE_MINUTES) {
+                console.log(`[FFmpeg 5-Min Active Check]: ${output.substring(0, 120)}`);
+                lastHeartbeatTime = currentTime; // Timer reset karein
+            }
+        } 
+        // Agar koi asal error aaye toh usko hide nahi karna
+        else if (output.includes('Error') || output.includes('Failed') || output.includes('Invalid')) {
             console.log(`\n[FFmpeg Issue]: ${output}`);
         }
     });
@@ -321,12 +341,310 @@ mainLoop();
 
 
 
+// ======= yes print statment done,abb opper code mei yeh ffpmeg k print statment ko kaam karna hai , yeh bohot zyda print hu rahey hai ================
+
+
+// const puppeteer = require('puppeteer-extra');
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// puppeteer.use(StealthPlugin());
+
+// const { spawn, execSync } = require('child_process');
+// const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
+
+// const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
+// const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
+// const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
+// const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
+
+// let browser = null;
+// let ffmpegProcess = null;
+
+// // 24/7 Infinite Loop
+// async function mainLoop() {
+//     while (true) {
+//         try {
+//             await startDirectStreaming();
+//             console.log('[!] Stream function resolved unexpectedly. Restarting in 5s...');
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         } catch (error) {
+//             console.error('[!] Global Stream Error: Restarting in 5s...', error.message || error);
+//             await cleanup();
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         }
+//     }
+// }
+
+// async function startDirectStreaming() {
+//     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
+
+//     const useProxy = process.env.USE_PROXY === 'ON';
+//     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
+//     const proxyUser = process.env.PROXY_USER || 'kexwytuq';
+//     const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
+
+//     const browserArgs = [
+//         '--no-sandbox',
+//         '--disable-setuid-sandbox',
+//         '--window-size=1280,720',
+//         '--kiosk', // Forces full-screen mode, hiding URL bar
+//         '--autoplay-policy=no-user-gesture-required'
+//     ];
+
+//     if (useProxy) {
+//         browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
+//     }
+
+//     console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
+//     browser = await puppeteer.launch({
+//         channel: 'chrome',
+//         headless: false, // Required for Xvfb display
+//         defaultViewport: { width: 1280, height: 720 },
+//         ignoreDefaultArgs: ['--enable-automation'], // Removes the "Chrome is being controlled" white bar
+//         args: browserArgs
+//     });
+
+//     const page = await browser.newPage();
+
+//     // Clean up default about:blank tab
+//     const pages = await browser.pages();
+//     for (const p of pages) {
+//         if (p !== page) await p.close();
+//     }
+
+//     // Aggressive Ad-Popup Blocker & Focus Management
+//     browser.on('targetcreated', async (target) => {
+//         if (target.type() === 'page') {
+//             try {
+//                 const newPage = await target.page();
+//                 if (newPage && newPage !== page) {
+//                     console.log(`[*] Adware tab detected! Forcing video tab back to foreground visually...`);
+//                     await page.bringToFront(); 
+//                     setTimeout(() => newPage.close().catch(() => { }), 2000);
+//                 }
+//             } catch (e) { }
+//         }
+//     });
+
+//     if (useProxy) {
+//         await page.authenticate({ username: proxyUser, password: proxyPass });
+//         console.log("Proxy credentials applied successfully.");
+//     }
+
+//     // GUI Visual Recorder (20 Sec Debug)
+//     const recorder = new PuppeteerScreenRecorder(page);
+//     await recorder.start('debug_video.mp4');
+//     console.log('🎥 [*] 20-second Visual Debug Recording Started...');
+
+//     setTimeout(async () => {
+//         try {
+//             await recorder.stop();
+//             console.log('🛑 [*] Visual Screen recording stopped. Uploading to GitHub Releases...');
+//             const tagName = `visual-debug-${Date.now()}`;
+//             execSync(`gh release create ${tagName} debug_video.mp4 --title "Puppeteer Visual Capture"`, { stdio: 'inherit' });
+//             console.log('✅ [+] Successfully uploaded visual debug wrapper!');
+//         } catch (err) {
+//             console.error('❌ [!] Failed to upload visual debug wrapper:', err.message);
+//         }
+//     }, 20000);
+
+//     const displayNum = process.env.DISPLAY || ':99';
+
+//     console.log(`[*] Navigating to target URL using Proxy...`);
+//     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+//     console.log('[*] Waiting for potential Cloudflare...');
+//     for (let i = 0; i < 15; i++) {
+//         const title = await page.title();
+//         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
+//         await new Promise(r => setTimeout(r, 1000));
+//     }
+
+//     await new Promise(resolve => setTimeout(resolve, 8000));
+
+//     console.log('[*] Cleaning up ads visually...');
+//     for (const frame of page.frames()) {
+//         try {
+//             await frame.evaluate(() => {
+//                 const adElement = document.querySelector('div#dontfoid');
+//                 if (adElement) adElement.remove();
+//             });
+//         } catch (e) { }
+//     }
+
+//     let targetFrame = null;
+//     for (const frame of page.frames()) {
+//         try {
+//             const hasVideo = await frame.evaluate(() => !!document.querySelector('video'));
+//             if (hasVideo) {
+//                 targetFrame = frame;
+//                 console.log(`[+] Found video element inside frame: ${frame.url() || 'unknown'}`);
+//                 break;
+//             }
+//         } catch (e) { }
+//     }
+
+//     if (!targetFrame) throw new Error('No <video> element could be found.');
+
+//     // In-Browser Injection: Unmute & Start Video Playback
+//     console.log('[*] Executing Audio Unmute and Wait Logic...');
+//     await targetFrame.evaluate(async () => {
+//         const video = document.querySelector('video');
+//         if (!video) return false;
+
+//         video.muted = false; // Unmute so audio flows to PulseAudio
+//         await video.play().catch(e => {});
+
+//         await new Promise((resolve) => {
+//             let elapsed = 0;
+//             const interval = setInterval(() => {
+//                 elapsed += 500;
+//                 if (video.videoWidth > 0 && video.readyState >= 3) {
+//                     clearInterval(interval);
+//                     resolve();
+//                 } else if (elapsed > 60000) {
+//                     clearInterval(interval);
+//                     resolve();
+//                 }
+//             }, 500);
+//         });
+//         return true;
+//     });
+
+//     console.log('[*] Executing GitHub Logs Debugging & Fullscreen Script...');
+    
+//     // NEW: Iframe ke andar ke logs collect kar ke Node.js ko wapas bhejenge
+//     const debugLogs = await targetFrame.evaluate(async () => {
+//         let terminalLogs = [];
+//         terminalLogs.push("\n=======================================================");
+//         terminalLogs.push("🔍 BROWSER FULLSCREEN DEBUG REPORT");
+//         terminalLogs.push("=======================================================");
+        
+//         const vid = document.querySelector('video');
+        
+//         // 1. Check if Video Exists
+//         if (vid) {
+//             terminalLogs.push("✅ STEP 1: YES! document.querySelector('video') mil gaya hai.");
+//         } else {
+//             terminalLogs.push("❌ STEP 1: NO! Video element iframe mein nahi mila.");
+//             return terminalLogs;
+//         }
+
+//         // 2. Try Native Fullscreen API
+//         terminalLogs.push("⏳ STEP 2: Native requestFullscreen() apply kar rahe hain...");
+//         try {
+//             if (vid.requestFullscreen) {
+//                 await vid.requestFullscreen();
+//             } else if (vid.webkitRequestFullscreen) {
+//                 await vid.webkitRequestFullscreen();
+//             }
+//             terminalLogs.push("🎉 RESULT: requestFullscreen() SUCCESS! Browser ne allow kar diya.");
+//         } catch (err) {
+//             // Agar HTML5 fullscreen block ho jaye
+//             terminalLogs.push("❌ RESULT: requestFullscreen() FAILED.");
+//             terminalLogs.push("⚠️ REASON: " + err.name + " - " + err.message);
+            
+//             // 3. Fallback: Force CSS Stretch so stream doesn't look bad
+//             terminalLogs.push("🛠️ STEP 3: CSS Force-Stretch Hack apply kar rahe hain...");
+//             vid.style.position = 'fixed';
+//             vid.style.top = '0';
+//             vid.style.left = '0';
+//             vid.style.width = '100vw';
+//             vid.style.height = '100vh';
+//             vid.style.zIndex = '2147483647';
+//             vid.style.backgroundColor = 'black';
+//             vid.style.objectFit = 'contain';
+//             terminalLogs.push("✅ RESULT: CSS Force-Stretch Hack Successfully lag gaya!");
+//         }
+        
+//         terminalLogs.push("=======================================================\n");
+//         return terminalLogs;
+//     });
+
+//     // Node.js (GitHub Actions) zabardasti in logs ko print karega
+//     for (const log of debugLogs) {
+//         console.log(log);
+//     }
+
+//     await new Promise(r => setTimeout(r, 2000)); // wait for transitions
+
+//     console.log('[*] Video playing! Spawning FFmpeg to capture raw X11 Display (bypasses all DRM)...');
+
+//     ffmpegProcess = spawn('ffmpeg', [
+//         '-y',
+//         '-use_wallclock_as_timestamps', '1',
+//         '-thread_queue_size', '1024',
+//         '-f', 'x11grab',
+//         '-draw_mouse', '0', 
+//         '-video_size', '1280x720',
+//         '-framerate', '30',
+//         '-i', displayNum,
+//         '-thread_queue_size', '1024',
+//         '-f', 'pulse',
+//         '-i', 'default',
+//         '-c:v', 'libx264',
+//         '-preset', 'veryfast',
+//         '-maxrate', '3000k',
+//         '-bufsize', '6000k',
+//         '-pix_fmt', 'yuv420p',
+//         '-g', '60',
+//         '-c:a', 'aac',
+//         '-b:a', '128k',
+//         '-ar', '44100',
+//         '-af', 'aresample=async=1', 
+//         '-f', 'flv',
+//         RTMP_DESTINATION 
+//     ]);
 
+//     ffmpegProcess.stderr.on('data', (data) => {
+//         const output = data.toString().trim();
+//         if (output.includes('frame=') && output.includes('fps=')) {
+//             process.stdout.write(`\r[FFmpeg Heartbeat]: ${output.substring(0, 100)}`);
+//         } else if (output.includes('Error') || output.includes('Failed')) {
+//             console.log(`\n[FFmpeg Issue]: ${output}`);
+//         }
+//     });
 
+//     ffmpegProcess.stdin.on('error', (err) => console.log(`\n[!] ffmpeg stdin closed (${err.code}).`));
+//     ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
+//     ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
 
+//     // Node Watchdog
+//     console.log('\n[*] Engine successfully connected! Live 24/7 Broadcast is running to OK.ru...');
+//     while (true) {
+//         if (!browser || !browser.isConnected()) {
+//             throw new Error("Browser was closed intentionally by Detector.");
+//         }
+//         if (!ffmpegProcess || ffmpegProcess.exitCode !== null) {
+//             throw new Error("FFmpeg process died unexpectedly.");
+//         }
+//         await new Promise(r => setTimeout(r, 2000));
+//     }
+// }
 
+// async function cleanup() {
+//     if (ffmpegProcess) {
+//         try {
+//             ffmpegProcess.stdin.end();
+//             ffmpegProcess.kill('SIGINT');
+//         } catch (e) { }
+//         ffmpegProcess = null;
+//     }
+//     if (browser) {
+//         try {
+//             await browser.close();
+//         } catch (e) { }
+//         browser = null;
+//     }
+// }
 
+// process.on('SIGINT', async () => {
+//     console.log('\n[*] Stopping live script cleanly...');
+//     await cleanup();
+//     process.exit(0);
+// });
 
+// // Boot
+// mainLoop();
 
 
 
@@ -416,7 +734,35 @@ mainLoop();
 
 
 
-// ============== Alhamdullah Done, fullscreen done,audio done , Alhamdullah =======================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ============== Alhamdullah Done, fullscreen done,audio done , Alhamdullah, opper code mei yeh print nahey huwaa k selector hai ya nhey yeh fullscreen k liye hai (document.querySelector('video').requestFullscreen();)  =======================
 
 
 
