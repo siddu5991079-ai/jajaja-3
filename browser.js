@@ -229,8 +229,7 @@ async function startDirectStreaming() {
         '-b:a', '128k',
         '-ar', '44100',
         '-f', 'flv',
-        // RTMP_DESTINATION // Uncomment this line to push live to ok.ru
-        'test_stream_output.flv'
+        RTMP_DESTINATION // Live broadcast to OK.ru
     ]);
 
     ffmpegProcess.stderr.on('data', (data) => {
@@ -246,26 +245,17 @@ async function startDirectStreaming() {
     ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
     ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
 
-    // NAYA: TEST MODE UPLOAD LOGIC
-    console.log('\n[*] TEST MODE: Recording locally for 30 seconds then uploading to GitHub...');
-    await new Promise(r => setTimeout(r, 60000)); // wait extra 60 seconds to ensure chunks are heavy
-    
-    console.log('\n🛑 [*] 60 seconds reached. Stopping FFmpeg to save local file test_stream_output.flv...');
-    ffmpegProcess.kill('SIGINT');
-    
-    await new Promise(r => setTimeout(r, 8000)); // Wait for ffmpeg to gracefully save
-    
-    try {
-        const tagName = `x11grab-test-${Date.now()}`;
-        console.log(`[*] Uploading test_stream_output.flv to GitHub Release ${tagName}...`);
-        execSync(`gh release create ${tagName} test_stream_output.flv --title "FFmpeg Stream X11 Test"`, { stdio: 'inherit' });
-        console.log('✅ [+] Successfully uploaded FFmpeg FLV to GitHub Releases!');
-    } catch (err) {
-        console.error('❌ [!] Failed to upload FFmpeg test file:', err.message);
+    // Node Watchdog
+    console.log('\n[*] Engine successfully connected! Live 24/7 Broadcast is running to OK.ru...');
+    while (true) {
+        if (!browser || !browser.isConnected()) {
+            throw new Error("Browser was closed intentionally by Detector.");
+        }
+        if (!ffmpegProcess || ffmpegProcess.exitCode !== null) {
+            throw new Error("FFmpeg process died unexpectedly.");
+        }
+        await new Promise(r => setTimeout(r, 2000));
     }
-    
-    console.log('[*] Test Complete! Exiting gracefully.');
-    process.exit(0);
 }
 
 async function cleanup() {
