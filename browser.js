@@ -48,8 +48,6 @@ async function startDirectStreaming() {
     const browserArgs = [
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
         '--window-size=1280,720',
         '--autoplay-policy=no-user-gesture-required'
     ];
@@ -106,9 +104,7 @@ async function startDirectStreaming() {
         console.log("Skipping proxy authentication because Proxy is OFF.");
     }
 
-    // User-Agent wahi set kiya jo aapke doosre project mein human jaisa detect hota hai
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
-
+    // Let stealth plugin manage the User-Agent to prevent fingerprint mismatch
     // ==========================================
 
     // Screen Recording Logic (20 Sec Debug)
@@ -276,8 +272,8 @@ async function startDirectStreaming() {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
-        '-f', 'flv',
-        RTMP_DESTINATION
+        // RTMP_DESTINATION // Commented out for local test
+        'test_stream_output.flv'
     ]);
 
     ffmpegProcess.stderr.on('data', (data) => {
@@ -295,17 +291,26 @@ async function startDirectStreaming() {
     ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
     ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
 
-    // Node Watchdog
-    console.log('\n[*] Engine successfully connected! Monitoring stream health via FFmpeg heartbeat...');
-    while (true) {
-        if (!browser || !browser.isConnected()) {
-            throw new Error("Browser was closed intentionally by Detector.");
-        }
-        if (!ffmpegProcess || ffmpegProcess.exitCode !== null) {
-            throw new Error("FFmpeg process died unexpectedly.");
-        }
-        await new Promise(r => setTimeout(r, 2000));
+    // NAYA: TEST MODE UPLOAD LOGIC
+    console.log('\n[*] TEST MODE: Recording locally for 30 seconds then uploading to GitHub...');
+    await new Promise(r => setTimeout(r, 30000)); // wait 30 seconds
+    
+    console.log('\n🛑 [*] 30 seconds reached. Stopping FFmpeg to save local file test_stream_output.flv...');
+    ffmpegProcess.kill('SIGINT');
+    
+    await new Promise(r => setTimeout(r, 5000)); // Wait for ffmpeg to gracefully save
+    
+    try {
+        const tagName = `ffmpeg-test-${Date.now()}`;
+        console.log(`[*] Uploading test_stream_output.flv to GitHub Release ${tagName}...`);
+        execSync(`gh release create ${tagName} test_stream_output.flv --title "FFmpeg Stream X11 Test"`, { stdio: 'inherit' });
+        console.log('✅ [+] Successfully uploaded FFmpeg FLV to GitHub Releases!');
+    } catch (err) {
+        console.error('❌ [!] Failed to upload FFmpeg test file:', err.message);
     }
+    
+    console.log('[*] Test Complete. Exiting script gracefully.');
+    process.exit(0);
 }
 
 async function cleanup() {
