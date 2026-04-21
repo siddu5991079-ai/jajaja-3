@@ -62,7 +62,7 @@ async function startDirectStreaming() {
     });
 
     const page = await browser.newPage();
-    
+
     // Clean up default about:blank tab so it doesn't clutter the Xvfb screen
     const pages = await browser.pages();
     for (const p of pages) {
@@ -77,9 +77,9 @@ async function startDirectStreaming() {
                 if (newPage && newPage !== page) {
                     console.log(`[*] Adware tab detected! Forcing video tab back to foreground visually...`);
                     await page.bringToFront(); // X11grab will instantly snap back to the video!
-                    setTimeout(() => newPage.close().catch(() => {}), 2000);
+                    setTimeout(() => newPage.close().catch(() => { }), 2000);
                 }
-            } catch(e) {}
+            } catch (e) { }
         }
     });
 
@@ -172,27 +172,41 @@ async function startDirectStreaming() {
     try {
         const iframeElement = await targetFrame.frameElement();
         const box = await iframeElement.boundingBox();
-        
+
         if (box) {
             const centerX = box.x + (box.width / 2);
             const centerY = box.y + (box.height / 2) + 20; // Click slightly below center
 
             await page.mouse.move(centerX, centerY, { steps: 5 });
             await new Promise(r => setTimeout(r, 500));
-            
+
             // 1st Click: This drops the UNMUTE overlay and usually spawns the Adware tab!
             console.log('[*] Engaging 1st Click to clear Player Overlays / trigger Adware...');
             await page.mouse.click(centerX, centerY, { delay: 50 }); // Delay makes it look human
-            
+
             // Wait 4 seconds for the Adware to spawn, and our Popup Blocker to murder it and refocus
             console.log('[*] Waiting 4 seconds for Ad-Blocker to refocus screen...');
             await new Promise(r => setTimeout(r, 4000));
-            
+
             // 2nd Action: Double Click! This tells the perfectly-loaded Native Player to go TRUE Fullscreen!
             console.log('[*] Engaging HUMAN Double-Click to activate Native Fullscreen API!');
             // Native HTML5 elements often require real gaps between down/up to register double click
             await page.mouse.click(centerX, centerY, { clickCount: 2, delay: 100 });
-            
+
+            // 3rd Action: Programmatic Fullscreen injection as an absolute guarantee!
+            console.log('[*] Injecting Javascript requestFullscreen() as an absolute guarantee...');
+            await targetFrame.evaluate(() => {
+                try {
+                    const vid = document.querySelector('video');
+                    if (vid) {
+                        if (vid.requestFullscreen) vid.requestFullscreen();
+                        else if (vid.webkitRequestFullscreen) vid.webkitRequestFullscreen();
+                    }
+                } catch(err) {
+                    console.log('JS Fullscreen API failed or already active:', err);
+                }
+            });
+
             console.log('[*] Player should now be natively Full Screen!');
             await new Promise(r => setTimeout(r, 2000)); // wait for fullscreen animation CSS to transition
         }
