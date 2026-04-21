@@ -2,9 +2,18 @@
 name: 24/7 Live Stream Bot
 
 on:
-  workflow_dispatch: # Aapko manual start/stop ka button dega
+  workflow_dispatch:
+    inputs:
+      use_proxy:
+        description: 'Use Proxy (ON or OFF)'
+        required: true
+        type: choice
+        options:
+          - 'OFF'
+          - 'ON'
+        default: 'OFF'
   schedule:
-    - cron: '0 */5 * * *' # Har 5 ghante baad server refresh karega (No downtime)
+    - cron: '0 */5 * * *'
 
 # NAYA: Releases create karne ki ijazat deni hogi GitHub Actions ko
 permissions:
@@ -36,8 +45,8 @@ jobs:
       # NAYA: GitHub Token provide karna zaroori hai taakey node script GitHub Release upload kar sake
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        USE_PROXY: ${{ github.event.inputs.use_proxy || 'OFF' }}
       run: xvfb-run --auto-servernum node browser.js
-
 
 
 
