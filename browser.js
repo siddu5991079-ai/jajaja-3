@@ -38,24 +38,32 @@ async function startDirectStreaming() {
     // ==========================================
     // NAYA CHROME LAUNCH LOGIC (HUMAN-LIKE)
     // ==========================================
+    // Check if we should use proxy (default is OFF unless specified)
+    const useProxy = process.env.USE_PROXY === 'ON';
+    
     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
     const proxyUser = process.env.PROXY_USER || 'jznxuitn';
     const proxyPass = process.env.PROXY_PASS || '4sp9smus5w8q';
 
-    console.log("Launching Browser on GitHub Actions Virtual Screen with Proxy...");
+    const browserArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--window-size=1280,720',
+        '--autoplay-policy=no-user-gesture-required'
+    ];
+
+    if (useProxy) {
+        browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
+    }
+
+    console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
     browser = await puppeteer.launch({
         channel: 'chrome',
         headless: false, // Xvfb par render karne ke liye false
         defaultViewport: { width: 1280, height: 720 },
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-web-security',
-            '--disable-features=IsolateOrigins,site-per-process', // Yeh iframes aur Cloudflare ko bypass karne mein madad karega
-            '--window-size=1280,720',
-            '--autoplay-policy=no-user-gesture-required',
-            `--proxy-server=http://${proxyIpPort}`
-        ]
+        args: browserArgs
     });
 
     const page = await browser.newPage();
@@ -84,12 +92,16 @@ async function startDirectStreaming() {
         }
     });
 
-    // Proxy Authentication
-    await page.authenticate({
-        username: proxyUser,
-        password: proxyPass
-    });
-    console.log("Proxy credentials applied successfully.");
+    // Proxy Authentication (Only if Proxy is ON)
+    if (useProxy) {
+        await page.authenticate({
+            username: proxyUser,
+            password: proxyPass
+        });
+        console.log("Proxy credentials applied successfully.");
+    } else {
+        console.log("Skipping proxy authentication because Proxy is OFF.");
+    }
 
     // User-Agent wahi set kiya jo aapke doosre project mein human jaisa detect hota hai
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
