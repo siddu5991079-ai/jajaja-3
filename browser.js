@@ -298,8 +298,8 @@ async function startDirectStreaming() {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
-        // RTMP_DESTINATION // Commented out for local test
-        'test_stream_output.flv'
+        '-f', 'flv',
+        RTMP_DESTINATION
     ]);
 
     ffmpegProcess.stderr.on('data', (data) => {
@@ -317,26 +317,17 @@ async function startDirectStreaming() {
     ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
     ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
 
-    // NAYA: TEST MODE UPLOAD LOGIC
-    console.log('\n[*] TEST MODE: Recording locally for 30 seconds then uploading to GitHub...');
-    await new Promise(r => setTimeout(r, 30000)); // wait 30 seconds
-    
-    console.log('\n🛑 [*] 30 seconds reached. Stopping FFmpeg to save local file test_stream_output.flv...');
-    ffmpegProcess.kill('SIGINT');
-    
-    await new Promise(r => setTimeout(r, 5000)); // Wait for ffmpeg to gracefully save
-    
-    try {
-        const tagName = `ffmpeg-test-${Date.now()}`;
-        console.log(`[*] Uploading test_stream_output.flv to GitHub Release ${tagName}...`);
-        execSync(`gh release create ${tagName} test_stream_output.flv --title "FFmpeg Stream X11 Test"`, { stdio: 'inherit' });
-        console.log('✅ [+] Successfully uploaded FFmpeg FLV to GitHub Releases!');
-    } catch (err) {
-        console.error('❌ [!] Failed to upload FFmpeg test file:', err.message);
+    // Node Watchdog
+    console.log('\n[*] Engine successfully connected! Monitoring stream health via FFmpeg heartbeat...');
+    while (true) {
+        if (!browser || !browser.isConnected()) {
+            throw new Error("Browser was closed intentionally by Detector.");
+        }
+        if (!ffmpegProcess || ffmpegProcess.exitCode !== null) {
+            throw new Error("FFmpeg process died unexpectedly.");
+        }
+        await new Promise(r => setTimeout(r, 2000));
     }
-    
-    console.log('[*] Test Complete. Exiting script gracefully.');
-    process.exit(0);
 }
 
 async function cleanup() {
@@ -363,6 +354,381 @@ process.on('SIGINT', async () => {
 
 // Boot
 mainLoop();
+
+
+
+
+
+
+
+
+// 222
+
+// const puppeteer = require('puppeteer-extra');
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// puppeteer.use(StealthPlugin());
+
+// const { spawn, execSync } = require('child_process');
+// const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
+
+// const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
+// const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
+// const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
+// const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
+
+// let browser = null;
+// let ffmpegProcess = null;
+// let lastChunkTime = Date.now();
+
+// // 24/7 Infinite Loop
+// async function mainLoop() {
+//     while (true) {
+//         try {
+//             await startDirectStreaming();
+//             console.log('[!] Stream function resolved unexpectedly. Restarting in 5s...');
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         } catch (error) {
+//             console.error('[!] Global Stream Error: Restarting in 5s...', error.message || error);
+//             await cleanup();
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         }
+//     }
+// }
+
+// async function startDirectStreaming() {
+//     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
+
+//     // FFmpeg Process will be spanned dynamically when the first stream chunk arrives
+//     // to prevent EBML pos 0 errors if navigation or proxy fails before starting.
+
+//     // ==========================================
+//     // NAYA CHROME LAUNCH LOGIC (HUMAN-LIKE)
+//     // ==========================================
+//     // Check if we should use proxy (default is OFF unless specified)
+//     const useProxy = process.env.USE_PROXY === 'ON';
+    
+//     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
+//     const proxyUser = process.env.PROXY_USER || 'kexwytuq';
+//     const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
+
+//     const browserArgs = [
+//         '--no-sandbox',
+//         '--disable-setuid-sandbox',
+//         '--window-size=1280,720',
+//         '--autoplay-policy=no-user-gesture-required'
+//     ];
+
+//     if (useProxy) {
+//         browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
+//     }
+
+//     console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
+//     browser = await puppeteer.launch({
+//         channel: 'chrome',
+//         headless: false, // Xvfb par render karne ke liye false
+//         defaultViewport: { width: 1280, height: 720 },
+//         ignoreDefaultArgs: ['--enable-automation'], // NAYA: Hides the "Chrome is being controlled" infobar
+//         args: browserArgs
+//     });
+
+//     const page = await browser.newPage();
+    
+//     // NAYA: Clean up default about:blank tab so it doesn't clutter the display
+//     const pages = await browser.pages();
+//     for (const p of pages) {
+//         if (p !== page) await p.close();
+//     }
+
+//     // NAYA: Aggressive Ad-Popup Blocker & Focus Management
+//     browser.on('targetcreated', async (target) => {
+//         if (target.type() === 'page') {
+//             try {
+//                 const newPage = await target.page();
+//                 if (newPage && newPage !== page) {
+//                     console.log(`[*] New tab detected. Bringing video tab back to front and queued for close...`);
+//                     // Instantly steal focus back to the video!
+//                     await page.bringToFront();
+//                     // Wait 2 seconds before closing so Puppeteer-stealth plugin doesn't crash from missing targets
+//                     setTimeout(() => {
+//                         newPage.close().catch(() => {});
+//                     }, 2000);
+//                 }
+//             } catch(e) {}
+//         }
+//     });
+
+//     page.on('console', msg => {
+//         const text = msg.text();
+//         console.log(`[Browser Console]: ${text}`);
+        
+//         // Only restart if the player throws 0x50014 (Cross-domain/DRM failure).
+//         // Ignored generic 403s in console output, as they are often just blocked ads or trackers.
+//         if (text.includes('0x50014')) {
+//             console.log(`\n🚨 [ALERT] Error code 0x50014 detected in console!`);
+//             if (browser && browser.isConnected()) {
+//                 console.log(`[*] Forcefully closing browser to initiate instant restart...`);
+//                 browser.close().catch(() => { });
+//             }
+//         }
+//     });
+
+//     page.on('response', response => {
+//         if (response.status() === 403 || response.status() === 404) {
+//             const url = response.url();
+//             if (url.includes('.m3u8') || url.includes('.ts')) {
+//                 console.log(`\n🚨 [ALERT] Blocked (${response.status()}) detected for media sequence: ${url}`);
+//                 if (browser && browser.isConnected()) {
+//                     console.log(`[*] Forcefully closing browser to initiate instant restart...`);
+//                     browser.close().catch(() => { });
+//                 }
+//             }
+//         }
+//     });
+
+//     // Proxy Authentication (Only if Proxy is ON)
+//     if (useProxy) {
+//         await page.authenticate({
+//             username: proxyUser,
+//             password: proxyPass
+//         });
+//         console.log("Proxy credentials applied successfully.");
+//     } else {
+//         console.log("Skipping proxy authentication because Proxy is OFF.");
+//     }
+
+//     // Let stealth plugin manage the User-Agent to prevent fingerprint mismatch
+//     // ==========================================
+
+//     // Screen Recording Logic (20 Sec Debug)
+//     const recorder = new PuppeteerScreenRecorder(page);
+//     await recorder.start('debug_video.mp4');
+//     console.log('🎥 [*] 20-second Debug Screen Recording Started...');
+
+//     setTimeout(async () => {
+//         try {
+//             await recorder.stop();
+//             console.log('🛑 [*] Screen recording stopped. Uploading to GitHub Releases...');
+//             const tagName = `debug-video-${Date.now()}`;
+//             execSync(`gh release create ${tagName} debug_video.mp4 --title "Debug Record: ${tagName}" --notes "Automated 20 seconds Chrome recording check."`, { stdio: 'inherit' });
+//             console.log('✅ [+] Successfully uploaded video to GitHub Releases!');
+//         } catch (err) {
+//             console.error('❌ [!] Failed to upload debug video:', err.message);
+//         }
+//     }, 20000);
+
+//     // Get Xvfb display number, usually provided by xvfb-run
+//     const displayNum = process.env.DISPLAY || ':99';
+
+//     await page.exposeFunction('triggerInstantRestart', async (reason) => {
+//         console.log(`\n🚨 [ALERT] In-Browser Detector Triggered: ${reason}`);
+//         console.log(`[*] Forcefully closing browser to initiate instant restart...`);
+//         if (browser) await browser.close().catch(() => { });
+//     });
+
+//     console.log(`[*] Navigating to target URL using Proxy...`);
+//     try {
+//         await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+//     } catch (e) {
+//         if (e.message.includes('ERR_TUNNEL_CONNECTION_FAILED')) {
+//             throw new Error(`Proxy tunnel failed. Your proxy (${proxyIpPort}) is likely dead, blocked, or out of bandwidth.`);
+//         }
+//         throw e;
+//     }
+
+//     console.log('[*] Waiting for potential Cloudflare...');
+//     for (let i = 0; i < 15; i++) {
+//         const title = await page.title();
+//         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
+//         await new Promise(r => setTimeout(r, 1000));
+//     }
+
+//     await new Promise(resolve => setTimeout(resolve, 8000));
+
+//     console.log('[*] Cleaning up ads...');
+//     for (const frame of page.frames()) {
+//         try {
+//             await frame.evaluate(() => {
+//                 const adElement = document.querySelector('div#dontfoid');
+//                 if (adElement) adElement.remove();
+//             });
+//         } catch (e) { }
+//     }
+
+//     let targetFrame = null;
+//     for (const frame of page.frames()) {
+//         try {
+//             const hasVideo = await frame.evaluate(() => !!document.querySelector('video'));
+//             if (hasVideo) {
+//                 targetFrame = frame;
+//                 console.log(`[+] Found video element inside frame: ${frame.url() || 'unknown'}`);
+//                 break;
+//             }
+//         } catch (e) { }
+//     }
+
+//     if (!targetFrame) throw new Error('No <video> element could be found.');
+
+//     try {
+//         const iframeElement = await targetFrame.frameElement();
+//         const box = await iframeElement.boundingBox();
+//         if (box) {
+//             await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2), { steps: 15 });
+//             await new Promise(r => setTimeout(r, 1000));
+//             await page.mouse.click(box.x + (box.width / 2), box.y + (box.height / 2));
+//             console.log('[*] Succeeded in clicking the exact center of the video player.');
+//         }
+//     } catch (e) {
+//         try { await targetFrame.click('video'); } catch (err) { }
+//     }
+
+//     // In-Browser Injection: Force Fullscreen & Play
+//     await targetFrame.evaluate(async () => {
+//         const video = document.querySelector('video');
+//         if (!video) throw new Error('No <video> element found.');
+
+//         video.muted = false; // Unmute so audio flows to PulseAudio
+//         await video.play().catch(e => console.log('[Player Debug] Auto-play manually blocked/failed:', e));
+
+//         await new Promise((resolve, reject) => {
+//             let elapsed = 0;
+//             const interval = setInterval(() => {
+//                 elapsed += 500;
+                
+//                 if (video.videoWidth > 0 && video.readyState >= 3) {
+//                     clearInterval(interval);
+//                     resolve();
+//                 } else if (elapsed > 60000) {
+//                     clearInterval(interval);
+//                     reject(new Error('Timeout: Video took longer than 60 seconds to populate.'));
+//                 }
+//             }, 500);
+//         });
+
+//         // Force CSS Fullscreen fallback on the video
+//         try {
+//             video.style.position = 'fixed';
+//             video.style.top = '0';
+//             video.style.left = '0';
+//             video.style.width = '100vw';
+//             video.style.height = '100vh';
+//             video.style.zIndex = '999999';
+//             video.style.backgroundColor = 'black';
+//             video.style.objectFit = 'contain';
+//         } catch(e) {}
+
+//         // NAYA CODE: Error & Freeze Detector
+//         setInterval(() => {
+//             try {
+//                 const bodyText = document.body.innerText || "";
+//                 if (bodyText.includes('0x50014') || bodyText.includes('Error')) {
+//                     if (window.triggerInstantRestart) window.triggerInstantRestart("Player Error 0x50014 Detected");
+//                     return;
+//                 }
+
+//                 if (video) {
+//                     if (window.lastVideoTime === undefined) window.lastVideoTime = -1;
+//                     if (video.currentTime === window.lastVideoTime && video.readyState > 0 && !video.paused) {
+//                         window.frozenCount = (window.frozenCount || 0) + 1;
+//                         if (window.frozenCount > 8) {
+//                             if (window.triggerInstantRestart) window.triggerInstantRestart("Video completely frozen");
+//                         }
+//                     } else {
+//                         window.frozenCount = 0;
+//                     }
+//                     window.lastVideoTime = video.currentTime;
+//                 }
+//             } catch (e) { }
+//         }, 5000);
+
+//         return true;
+//     });
+
+//     console.log('[*] Video playing! Spawning FFmpeg to capture X11 Display & PulseAudio...');
+
+//     ffmpegProcess = spawn('ffmpeg', [
+//         '-y',
+//         '-thread_queue_size', '1024',
+//         '-f', 'x11grab',
+//         '-video_size', '1280x720',
+//         '-framerate', '30',
+//         '-i', displayNum,
+//         '-thread_queue_size', '1024',
+//         '-f', 'pulse',
+//         '-i', 'default',
+//         '-c:v', 'libx264',
+//         '-preset', 'veryfast',  // Important to prevent CPU maxout on GH Actions
+//         '-maxrate', '3000k',
+//         '-bufsize', '6000k',
+//         '-pix_fmt', 'yuv420p',
+//         '-g', '60',
+//         '-c:a', 'aac',
+//         '-b:a', '128k',
+//         '-ar', '44100',
+//         // RTMP_DESTINATION // Commented out for local test
+//         'test_stream_output.flv'
+//     ]);
+
+//     ffmpegProcess.stderr.on('data', (data) => {
+//         const output = data.toString().trim();
+//         // Log periodically to avoid massive github logs, but show critical debug
+//         if (output.includes('frame=') && output.includes('fps=')) {
+//             // print as a single overriding line in terminal if possible
+//             process.stdout.write(`\r[FFmpeg Heartbeat]: ${output.substring(0, 100)}`);
+//         } else if (output.includes('Error') || output.includes('Failed')) {
+//             console.log(`\n[FFmpeg Issue]: ${output}`);
+//         }
+//     });
+
+//     ffmpegProcess.stdin.on('error', (err) => console.log(`\n[!] ffmpeg stdin closed (${err.code}).`));
+//     ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
+//     ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
+
+//     // NAYA: TEST MODE UPLOAD LOGIC
+//     console.log('\n[*] TEST MODE: Recording locally for 30 seconds then uploading to GitHub...');
+//     await new Promise(r => setTimeout(r, 30000)); // wait 30 seconds
+    
+//     console.log('\n🛑 [*] 30 seconds reached. Stopping FFmpeg to save local file test_stream_output.flv...');
+//     ffmpegProcess.kill('SIGINT');
+    
+//     await new Promise(r => setTimeout(r, 5000)); // Wait for ffmpeg to gracefully save
+    
+//     try {
+//         const tagName = `ffmpeg-test-${Date.now()}`;
+//         console.log(`[*] Uploading test_stream_output.flv to GitHub Release ${tagName}...`);
+//         execSync(`gh release create ${tagName} test_stream_output.flv --title "FFmpeg Stream X11 Test"`, { stdio: 'inherit' });
+//         console.log('✅ [+] Successfully uploaded FFmpeg FLV to GitHub Releases!');
+//     } catch (err) {
+//         console.error('❌ [!] Failed to upload FFmpeg test file:', err.message);
+//     }
+    
+//     console.log('[*] Test Complete. Exiting script gracefully.');
+//     process.exit(0);
+// }
+
+// async function cleanup() {
+//     if (ffmpegProcess) {
+//         try {
+//             ffmpegProcess.stdin.end();
+//             ffmpegProcess.kill('SIGINT');
+//         } catch (e) { }
+//         ffmpegProcess = null;
+//     }
+//     if (browser) {
+//         try {
+//             await browser.close();
+//         } catch (e) { }
+//         browser = null;
+//     }
+// }
+
+// process.on('SIGINT', async () => {
+//     console.log('\n[*] Stopping live script cleanly...');
+//     await cleanup();
+//     process.exit(0);
+// });
+
+// // Boot
+// mainLoop();
 
 
 
