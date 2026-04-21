@@ -61,9 +61,9 @@ async function startDirectStreaming() {
     // ==========================================
     // NAYA CHROME LAUNCH LOGIC (HUMAN-LIKE)
     // ==========================================
-    const proxyIpPort = '31.59.20.176:6754';
-    const proxyUser = 'jznxuitn';
-    const proxyPass = '4sp9smus5w8q';
+    const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
+    const proxyUser = process.env.PROXY_USER || 'jznxuitn';
+    const proxyPass = process.env.PROXY_PASS || '4sp9smus5w8q';
 
     console.log("Launching Browser on GitHub Actions Virtual Screen with Proxy...");
     browser = await puppeteer.launch({
@@ -89,7 +89,7 @@ async function startDirectStreaming() {
             console.log(`\n🚨 [ALERT] Error code 0x50014 or 403 detected in console!`);
             if (browser && browser.isConnected()) {
                 console.log(`[*] Forcefully closing browser to initiate instant restart...`);
-                browser.close().catch(() => {});
+                browser.close().catch(() => { });
             }
         }
     });
@@ -101,7 +101,7 @@ async function startDirectStreaming() {
                 console.log(`\n🚨 [ALERT] Blocked (${response.status()}) detected for media sequence: ${url}`);
                 if (browser && browser.isConnected()) {
                     console.log(`[*] Forcefully closing browser to initiate instant restart...`);
-                    browser.close().catch(() => {});
+                    browser.close().catch(() => { });
                 }
             }
         }
@@ -159,7 +159,14 @@ async function startDirectStreaming() {
     });
 
     console.log(`[*] Navigating to target URL using Proxy...`);
-    await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    try {
+        await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    } catch (e) {
+        if (e.message.includes('ERR_TUNNEL_CONNECTION_FAILED')) {
+            throw new Error(`Proxy tunnel failed. Your proxy (${proxyIpPort}) is likely dead, blocked, or out of bandwidth.`);
+        }
+        throw e;
+    }
 
     console.log('[*] Waiting for potential Cloudflare...');
     for (let i = 0; i < 15; i++) {
@@ -318,13 +325,13 @@ async function startDirectStreaming() {
         if (!browser || !browser.isConnected()) {
             throw new Error("Browser was closed intentionally by Detector.");
         }
-        
+
         const timeSinceLastChunk = Date.now() - lastChunkTime;
-        
+
         if (!initialChunksReceived && timeSinceLastChunk > 15000) {
-             throw new Error("Stream dropped: No initial video chunks received within 15 seconds. Player might be frozen or 0x50014 errored.");
+            throw new Error("Stream dropped: No initial video chunks received within 15 seconds. Player might be frozen or 0x50014 errored.");
         }
-        
+
         if (timeSinceLastChunk > 60000) {
             throw new Error("Stream dropped: No video chunks received from browser for 60 seconds.");
         }
