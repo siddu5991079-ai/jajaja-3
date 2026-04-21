@@ -61,10 +61,31 @@ async function startDirectStreaming() {
         channel: 'chrome',
         headless: false, // Xvfb par render karne ke liye false
         defaultViewport: { width: 1280, height: 720 },
+        ignoreDefaultArgs: ['--enable-automation'], // NAYA: Hides the "Chrome is being controlled" infobar
         args: browserArgs
     });
 
     const page = await browser.newPage();
+    
+    // NAYA: Clean up default about:blank tab so it doesn't clutter the display
+    const pages = await browser.pages();
+    for (const p of pages) {
+        if (p !== page) await p.close();
+    }
+
+    // NAYA: Aggressive Ad-Popup Blocker - instantly closes any new tab that adware tries to open
+    browser.on('targetcreated', async (target) => {
+        if (target.type() === 'page') {
+            try {
+                const newPage = await target.page();
+                if (newPage && newPage !== page) {
+                    console.log(`[*] Auto-closing popup ad tab to prevent focus stealing!`);
+                    await newPage.close();
+                }
+            } catch(e) {}
+        }
+    });
+
     page.on('console', msg => {
         const text = msg.text();
         console.log(`[Browser Console]: ${text}`);
