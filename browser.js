@@ -32,31 +32,8 @@ async function mainLoop() {
 async function startDirectStreaming() {
     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
 
-    // Start FFmpeg
-    ffmpegProcess = spawn('ffmpeg', [
-        '-y',
-        '-analyzeduration', '100M',
-        '-probesize', '100M',
-        '-f', 'webm',
-        '-i', 'pipe:0',
-        '-c:v', 'libx264',
-        '-preset', 'veryfast',
-        '-maxrate', '3000k',
-        '-bufsize', '6000k',
-        '-pix_fmt', 'yuv420p',
-        '-r', '30',
-        '-g', '60',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-ar', '44100',
-        '-f', 'flv',
-        'local_buffer.flv' // Testing ke liye. Live karna ho toh RTMP_DESTINATION use karein
-    ]);
-
-    ffmpegProcess.stderr.on('data', (data) => console.log(`[FFmpeg]: ${data.toString().trim()}`));
-    ffmpegProcess.stdin.on('error', (err) => console.log(`[!] ffmpeg stdin closed (${err.code}). Reconnecting...`));
-    ffmpegProcess.on('close', (code) => console.log(`[*] FFmpeg process exited with code ${code}`));
-    ffmpegProcess.on('error', (err) => console.error('[!] FFmpeg failed to start.', err));
+    // FFmpeg Process will be spanned dynamically when the first stream chunk arrives
+    // to prevent EBML pos 0 errors if navigation or proxy fails before starting.
 
     // ==========================================
     // NAYA CHROME LAUNCH LOGIC (HUMAN-LIKE)
@@ -141,7 +118,37 @@ async function startDirectStreaming() {
     // Node bridge for chunks
     await page.exposeFunction('streamChunkToNode', async (base64Chunk) => {
         lastChunkTime = Date.now();
-        initialChunksReceived = true;
+        
+        if (!initialChunksReceived) {
+            initialChunksReceived = true;
+            console.log('[*] First media chunk received! Starting FFmpeg now...');
+            
+            ffmpegProcess = spawn('ffmpeg', [
+                '-y',
+                '-analyzeduration', '100M',
+                '-probesize', '100M',
+                '-f', 'webm',
+                '-i', 'pipe:0',
+                '-c:v', 'libx264',
+                '-preset', 'veryfast',
+                '-maxrate', '3000k',
+                '-bufsize', '6000k',
+                '-pix_fmt', 'yuv420p',
+                '-r', '30',
+                '-g', '60',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-ar', '44100',
+                '-f', 'flv',
+                'local_buffer.flv' // Testing ke liye. Live karna ho toh RTMP_DESTINATION use karein
+            ]);
+
+            ffmpegProcess.stderr.on('data', (data) => console.log(`[FFmpeg]: ${data.toString().trim()}`));
+            ffmpegProcess.stdin.on('error', (err) => console.log(`[!] ffmpeg stdin closed (${err.code}).`));
+            ffmpegProcess.on('close', (code) => console.log(`[*] FFmpeg process exited with code ${code}`));
+            ffmpegProcess.on('error', (err) => console.error('[!] FFmpeg failed to start.', err));
+        }
+
         if (ffmpegProcess && ffmpegProcess.stdin && ffmpegProcess.exitCode === null) {
             try {
                 const buffer = Buffer.from(base64Chunk, 'base64');
@@ -313,7 +320,7 @@ async function startDirectStreaming() {
             }
         };
 
-        recorder.start(3000);
+        recorder.start(1000);
         console.log('LIVE Streaming started successfully with active tracks!');
         return true;
     });
