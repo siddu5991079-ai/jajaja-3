@@ -2,23 +2,22 @@ const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
+const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 
 const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
-const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/'; // standard RTMP to avoid TLS handshake crash
+const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
 const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
 const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
 
 let browser = null;
 let ffmpegProcess = null;
-let lastChunkTime = Date.now();
 
-// An infinite loop controller for 24/7 broadcasting
+// 24/7 Infinite Loop
 async function mainLoop() {
     while (true) {
         try {
             await startDirectStreaming();
-            // If function resolves normally (it shouldn't in 24/7), wait 5 seconds and restart
             console.log('[!] Stream function resolved unexpectedly. Restarting in 5s...');
             await new Promise(resolve => setTimeout(resolve, 5000));
         } catch (error) {
@@ -32,58 +31,48 @@ async function mainLoop() {
 async function startDirectStreaming() {
     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
 
-    // Proxy support (optional via GH actions env)
     const useProxy = process.env.USE_PROXY === 'ON';
     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
     const proxyUser = process.env.PROXY_USER || 'kexwytuq';
     const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
 
     const browserArgs = [
-        '--autoplay-policy=no-user-gesture-required',
-        '--disable-web-security', // ESSENTIAL for capturing cross-origin streams without throwing SecurityError
-        '--disable-features=IsolateOrigins,site-per-process', // CRITICAL for exposing streamChunkToNode into cross-origin iframes
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--start-maximized'
+        '--window-size=1280,720',
+        '--autoplay-policy=no-user-gesture-required'
     ];
 
     if (useProxy) {
         browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
     }
 
+    console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
     browser = await puppeteer.launch({
         channel: 'chrome',
-        headless: false,
-        ignoreDefaultArgs: ['--enable-automation'], // Hides the annoying infobar
-        args: browserArgs,
-        defaultViewport: null,
+        headless: false, // Required for Xvfb display
+        defaultViewport: { width: 1280, height: 720 },
+        ignoreDefaultArgs: ['--enable-automation'], // Removes the "Chrome is being controlled" white bar
+        args: browserArgs
     });
 
     const page = await browser.newPage();
     
-    // NAYA: Pipe browser logs into Node terminal so we can see what the video player is doing
-    page.on('console', msg => {
-        console.log(`[Browser]: ${msg.text()}`);
-    });
-    
-    // Clean up default about:blank tab so it doesn't clutter
+    // Clean up default about:blank tab so it doesn't clutter the Xvfb screen
     const pages = await browser.pages();
     for (const p of pages) {
         if (p !== page) await p.close();
     }
 
-    // THE MAGIC TAB FIX: Instantly close adware tabs and switch focus back!
+    // NAYA: Aggressive Ad-Popup Blocker & Focus Management
     browser.on('targetcreated', async (target) => {
         if (target.type() === 'page') {
             try {
                 const newPage = await target.page();
                 if (newPage && newPage !== page) {
-                    console.log(`[*] Adware tab detected. Bringing video tab back to front so MediaRecorder doesn't pause...`);
-                    await page.bringToFront();
-                    // Wait 2 seconds before closing so Puppeteer-stealth plugin doesn't crash on injection
-                    setTimeout(() => {
-                        newPage.close().catch(() => {});
-                    }, 2000);
+                    console.log(`[*] Adware tab detected! Forcing video tab back to foreground visually...`);
+                    await page.bringToFront(); // X11grab will instantly snap back to the video!
+                    setTimeout(() => newPage.close().catch(() => {}), 2000);
                 }
             } catch(e) {}
         }
@@ -94,93 +83,47 @@ async function startDirectStreaming() {
         console.log("Proxy credentials applied successfully.");
     }
 
-    // Spawn FFmpeg to listen on standard input (pipe:0)
-    ffmpegProcess = spawn('ffmpeg', [
-        '-y',
-        '-analyzeduration', '100M', // Help FFmpeg parse the incoming live WebM stream
-        '-probesize', '100M',
-        '-f', 'webm',               // Our input chunk format from Chrome
-        '-i', 'pipe:0',             // Read from stdin
-        '-c:v', 'libx264',          // Encode to H.264
-        '-preset', 'veryfast',      // Low latency CPU preset
-        '-maxrate', '3000k',        // Control bitrate
-        '-bufsize', '6000k',        // Control stream buffering
-        '-pix_fmt', 'yuv420p',      // Standard pixel format for RTMP compatibility
-        '-r', '30',                 // STRICT CFR 30fps injection. Live ingest servers crash if it receives VFR
-        '-g', '60',                 // Keyframe interval (2 seconds at 30fps)
-        '-c:a', 'aac',              // Audio codec
-        '-b:a', '128k',             // Audio bitrate
-        '-ar', '44100',             // Audio sample rate
-        '-f', 'flv',                // RTMP relies on the FLV container format
-        // RTMP_DESTINATION         // Commented out for local test
-        'test_stream_output.flv'
-    ]);
+    // GUI Visual Recorder (20 Sec Debug) to verify visual output logic
+    const recorder = new PuppeteerScreenRecorder(page);
+    await recorder.start('debug_video.mp4');
+    console.log('🎥 [*] 20-second Visual Debug Recording Started...');
 
-    ffmpegProcess.stderr.on('data', (data) => {
-        const output = data.toString().trim();
-        // Periodically console log the heartbeat to prevent immense github logs
-        if (output.includes('frame=')) {
-            process.stdout.write(`\r[FFmpeg Heartbeat]: ${output.substring(0, 100)}`);
-        } else if (output.includes('Error') || output.includes('Failed') || output.includes('Invalid data')) {
-            console.log(`\n[FFmpeg]: ${output}`);
+    setTimeout(async () => {
+        try {
+            await recorder.stop();
+            console.log('🛑 [*] Visual Screen recording stopped. Uploading to GitHub Releases...');
+            const tagName = `visual-debug-${Date.now()}`;
+            execSync(`gh release create ${tagName} debug_video.mp4 --title "Puppeteer Visual Capture"`, { stdio: 'inherit' });
+            console.log('✅ [+] Successfully uploaded visual debug wrapper!');
+        } catch (err) {
+            console.error('❌ [!] Failed to upload visual debug wrapper:', err.message);
         }
-    });
+    }, 20000);
 
-    // CRITICAL: Swallow stdin EOF exceptions so Node doesn't violently exit if the stream provider drops our connection
-    ffmpegProcess.stdin.on('error', (err) => {
-        console.log(`\n[!] ffmpeg stdin closed (${err.code}). Reconnecting...`);
-    });
+    const displayNum = process.env.DISPLAY || ':99';
 
-    ffmpegProcess.on('close', (code) => {
-        console.log(`\n[*] FFmpeg process exited with code ${code}`);
-    });
-
-    ffmpegProcess.on('error', (err) => {
-        console.error('\n[!] FFmpeg failed to start.', err);
-    });
-
-    // We expose a function that the browser can call to pipe the live video byte buffers into Node
-    await page.exposeFunction('streamChunkToNode', async (base64Chunk) => {
-        lastChunkTime = Date.now(); // Reset the watchdog
-        // Strict verification that the pipe is alive before writing
-        if (ffmpegProcess && ffmpegProcess.stdin && ffmpegProcess.exitCode === null) {
-            try {
-                const buffer = Buffer.from(base64Chunk, 'base64');
-                ffmpegProcess.stdin.write(buffer, (err) => {
-                    if (err) console.error("\nFFmpeg write cleanly dropped:", err.message);
-                });
-            } catch (err) { }
-        }
-    });
-
-    console.log(`[*] Navigating to ${TARGET_URL}...`);
-
+    console.log(`[*] Navigating to target URL using Proxy...`);
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    console.log('[*] Waiting for potential Cloudflare Turnstile to securely resolve itself...');
-    // We poll until the page title is no longer 'Just a moment...' or 15 seconds elapse
+    console.log('[*] Waiting for potential Cloudflare...');
     for (let i = 0; i < 15; i++) {
         const title = await page.title();
         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
         await new Promise(r => setTimeout(r, 1000));
     }
 
-    console.log('[*] Waiting for iframes to load natively...');
     await new Promise(resolve => setTimeout(resolve, 8000));
 
-    console.log('[*] Cleaning up ad elements across all frames...');
+    console.log('[*] Cleaning up ads visually...');
     for (const frame of page.frames()) {
         try {
             await frame.evaluate(() => {
                 const adElement = document.querySelector('div#dontfoid');
                 if (adElement) adElement.remove();
             });
-        } catch (e) {
-            // Ignore cross-origin access errors
-        }
+        } catch (e) { }
     }
 
-    console.log('[*] Searching all iframes for the target video element...');
     let targetFrame = null;
     for (const frame of page.frames()) {
         try {
@@ -190,16 +133,10 @@ async function startDirectStreaming() {
                 console.log(`[+] Found video element inside frame: ${frame.url() || 'unknown'}`);
                 break;
             }
-        } catch (e) {
-            // Ignore
-        }
+        } catch (e) { }
     }
 
-    if (!targetFrame) {
-        throw new Error('No <video> element could be found.');
-    }
-
-    console.log('[*] Injecting LIVE MediaRecorder streaming logic...');
+    if (!targetFrame) throw new Error('No <video> element could be found.');
 
     try {
         const iframeElement = await targetFrame.frameElement();
@@ -211,19 +148,18 @@ async function startDirectStreaming() {
             console.log('[*] Succeeded in clicking the exact center of the video player.');
         }
     } catch (e) {
-        console.log('[!] Overlay physical click failed, attempting standard DOM click...');
         try { await targetFrame.click('video'); } catch (err) { }
     }
 
+    // In-Browser Injection: Force Fullscreen visually & Play
     await targetFrame.evaluate(async () => {
         const video = document.querySelector('video');
         if (!video) throw new Error('No <video> element found.');
 
-        video.muted = false; // We can keep muted locally, but this forces playback audio
-        await video.play().catch(e => console.log('Auto-play blocked or failed:', e));
+        video.muted = false; // Unmute so audio flows to PulseAudio
+        await video.play().catch(e => console.log('Auto-play manually blocked/failed:', e));
 
-        // CRITICAL: Wait for physical dimensions. If we capture before width > 0, the EBML Header is corrupted!
-        await new Promise((resolve, reject) => {
+        await new Promise((resolve) => {
             let elapsed = 0;
             const interval = setInterval(() => {
                 elapsed += 500;
@@ -232,105 +168,87 @@ async function startDirectStreaming() {
                     resolve();
                 } else if (elapsed > 60000) {
                     clearInterval(interval);
-                    reject(new Error('Timeout: Video took longer than 60 seconds to load dimensions.'));
-                }
-            }, 500);
-        });
-
-        let stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
-
-        // CRITICAL: Wait for an active, live video track
-        await new Promise((resolve, reject) => {
-            let elapsed = 0;
-            const trackInterval = setInterval(() => {
-                elapsed += 500;
-                const tracks = stream.getVideoTracks();
-                if (tracks.length > 0 && tracks[0].readyState === 'live') {
-                    clearInterval(trackInterval);
                     resolve();
-                } else if (elapsed > 20000) {
-                    clearInterval(trackInterval);
-                    reject(new Error('Timeout: Video stream tracks never populated.'));
                 }
             }, 500);
         });
 
-        await new Promise(r => setTimeout(r, 1000));
+        // Force CSS Fullscreen fallback so video consumes 100% of the Xvfb display
+        try {
+            video.style.position = 'fixed';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.width = '100vw';
+            video.style.height = '100vh';
+            video.style.zIndex = '999999';
+            video.style.backgroundColor = 'black';
+            video.style.objectFit = 'contain';
+        } catch(e) {}
 
-        const options = { mimeType: 'video/webm; codecs=vp8,opus' };
-        const recorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(options.mimeType) ? options : undefined);
-
-        let chunkQueue = [];
-        let isProcessing = false;
-
-        async function processQueue() {
-            if (isProcessing) return;
-            isProcessing = true;
-            while (chunkQueue.length > 0) {
-                const blob = chunkQueue.shift();
-                console.log(`[Browser] Chunk generated by MediaRecorder (Size: ${blob.size} bytes)`);
-                try {
-                    const base64Data = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            resolve(reader.result.split('base64,')[1]);
-                        };
-                        reader.readAsDataURL(blob);
-                    });
-                    
-                    if (window.streamChunkToNode) {
-                        await window.streamChunkToNode(base64Data);
-                        console.log(`[Browser] Sent ${base64Data.length} characters of Base64 to Node`);
-                    } else if (window.top && window.top.streamChunkToNode) {
-                        await window.top.streamChunkToNode(base64Data);
-                        console.log(`[Browser] Sent via window.top to Node`);
-                    } else {
-                        console.error('[Browser] streamChunkToNode function is completely missing from window context!');
-                    }
-                } catch (e) {
-                    console.error('[Browser] Chunk processing error:', e);
-                }
-            }
-            isProcessing = false;
-        }
-
-        recorder.ondataavailable = (event) => {
-            if (event.data && event.data.size > 0) {
-                chunkQueue.push(event.data);
-                processQueue();
-            }
-        };
-
-        // Output 3-second chunks 
-        recorder.start(3000);
-        console.log('LIVE Streaming MediaRecorder started successfully!');
         return true;
     });
 
+    console.log('[*] Video playing! Spawning FFmpeg to capture raw X11 Display (bypasses all DRM)...');
+
+    ffmpegProcess = spawn('ffmpeg', [
+        '-y',
+        '-thread_queue_size', '1024',
+        '-f', 'x11grab',
+        '-video_size', '1280x720',
+        '-framerate', '30',
+        '-i', displayNum,
+        '-thread_queue_size', '1024',
+        '-f', 'pulse',
+        '-i', 'default',
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-maxrate', '3000k',
+        '-bufsize', '6000k',
+        '-pix_fmt', 'yuv420p',
+        '-g', '60',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-f', 'flv',
+        // RTMP_DESTINATION // Uncomment this line to push live to ok.ru
+        'test_stream_output.flv'
+    ]);
+
+    ffmpegProcess.stderr.on('data', (data) => {
+        const output = data.toString().trim();
+        if (output.includes('frame=') && output.includes('fps=')) {
+            process.stdout.write(`\r[FFmpeg Heartbeat]: ${output.substring(0, 100)}`);
+        } else if (output.includes('Error') || output.includes('Failed')) {
+            console.log(`\n[FFmpeg Issue]: ${output}`);
+        }
+    });
+
+    ffmpegProcess.stdin.on('error', (err) => console.log(`\n[!] ffmpeg stdin closed (${err.code}).`));
+    ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg process exited with code ${code}`));
+    ffmpegProcess.on('error', (err) => console.error('\n[!] FFmpeg failed to start.', err));
+
     // NAYA: TEST MODE UPLOAD LOGIC
-    console.log('\n[*] TEST MODE: Receiving MediaRecorder chunks locally for 30s then uploading to GitHub...');
-    await new Promise(r => setTimeout(r, 30000)); // wait 30 seconds
+    console.log('\n[*] TEST MODE: Recording locally for 30 seconds then uploading to GitHub...');
+    await new Promise(r => setTimeout(r, 60000)); // wait extra 60 seconds to ensure chunks are heavy
     
-    console.log('\n🛑 [*] 30 seconds reached. Stopping FFmpeg to save test file...');
+    console.log('\n🛑 [*] 60 seconds reached. Stopping FFmpeg to save local file test_stream_output.flv...');
     ffmpegProcess.kill('SIGINT');
     
-    await new Promise(r => setTimeout(r, 5000)); // Wait for ffmpeg to gracefully save FLV
+    await new Promise(r => setTimeout(r, 8000)); // Wait for ffmpeg to gracefully save
     
     try {
-        const { execSync } = require('child_process');
-        const tagName = `capture-test-${Date.now()}`;
+        const tagName = `x11grab-test-${Date.now()}`;
         console.log(`[*] Uploading test_stream_output.flv to GitHub Release ${tagName}...`);
-        execSync(`gh release create ${tagName} test_stream_output.flv --title "MediaRecorder Capture Test"`, { stdio: 'inherit' });
-        console.log('✅ [+] Successfully uploaded test_stream_output.flv to GitHub Releases!');
+        execSync(`gh release create ${tagName} test_stream_output.flv --title "FFmpeg Stream X11 Test"`, { stdio: 'inherit' });
+        console.log('✅ [+] Successfully uploaded FFmpeg FLV to GitHub Releases!');
     } catch (err) {
         console.error('❌ [!] Failed to upload FFmpeg test file:', err.message);
     }
     
-    console.log('[*] Test Complete. Exiting script gracefully.');
+    console.log('[*] Test Complete! Exiting gracefully.');
     process.exit(0);
 }
 
-// Ensure processes drop cleanly during a forced restart
 async function cleanup() {
     if (ffmpegProcess) {
         try {
@@ -347,14 +265,13 @@ async function cleanup() {
     }
 }
 
-// Graceful exit
 process.on('SIGINT', async () => {
     console.log('\n[*] Stopping live script cleanly...');
     await cleanup();
     process.exit(0);
 });
 
-// Boot script
+// Boot
 mainLoop();
 
 
