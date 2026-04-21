@@ -1,4 +1,5 @@
 
+
 name: 24/7 Live Stream Bot
 
 on:
@@ -54,6 +55,80 @@ jobs:
 
         # Run Chromium inside a Virtual Monitor with exact 1280x720 HD resolution
         xvfb-run -s "-screen 0 1280x720x24 -ac" node browser.js
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ============= done fullscreen capture and broadscast to ok.ru =====================
+
+
+
+# name: 24/7 Live Stream Bot
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       use_proxy:
+#         description: 'Use Proxy (ON or OFF)'
+#         required: true
+#         type: choice
+#         options:
+#           - 'OFF'
+#           - 'ON'
+#         default: 'OFF'
+#   schedule:
+#     - cron: '0 */5 * * *'
+
+# # NAYA: Releases create karne ki ijazat deni hogi GitHub Actions ko
+# permissions:
+#   contents: write
+
+# jobs:
+#   stream:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Get Code
+#       uses: actions/checkout@v3
+
+#     - name: Setup Node.js
+#       uses: actions/setup-node@v3
+#       with:
+#         node-version: '18'
+
+#     - name: Install FFmpeg, Virtual Display, & Audio Server
+#       run: |
+#         sudo apt-get update
+#         sudo apt-get install -y ffmpeg xvfb pulseaudio dbus-x11
+
+#     - name: Install Required Packages
+#       # NAYA: puppeteer-screen-recorder install add kiya gaya hai
+#       run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth puppeteer-screen-recorder
+
+#     - name: Start Live Stream
+#       env:
+#         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         USE_PROXY: ${{ github.event.inputs.use_proxy || 'OFF' }}
+#       run: |
+#         # Start headless audio server for FFmpeg to capture
+#         pulseaudio -D --exit-idle-time=-1
+#         pacmd load-module module-virtual-sink sink_name=v1
+#         pacmd set-default-sink v1
+#         pacmd set-default-source v1.monitor
+
+#         # Run Chromium inside a Virtual Monitor with exact 1280x720 HD resolution
+#         xvfb-run -s "-screen 0 1280x720x24 -ac" node browser.js
 
 
 
