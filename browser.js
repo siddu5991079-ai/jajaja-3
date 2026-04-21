@@ -42,8 +42,8 @@ async function startDirectStreaming() {
     const useProxy = process.env.USE_PROXY === 'ON';
     
     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
-    const proxyUser = process.env.PROXY_USER || 'jznxuitn';
-    const proxyPass = process.env.PROXY_PASS || '4sp9smus5w8q';
+    const proxyUser = process.env.PROXY_USER || 'kexwytuq';
+    const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
 
     const browserArgs = [
         '--no-sandbox',
