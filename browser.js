@@ -211,8 +211,10 @@ async function startDirectStreaming() {
 
     ffmpegProcess = spawn('ffmpeg', [
         '-y',
+        '-use_wallclock_as_timestamps', '1', // NAYA: Perfectly aligns Video and Audio timelines using system clock
         '-thread_queue_size', '1024',
         '-f', 'x11grab',
+        '-draw_mouse', '0', // NAYA: Stops mouse movements from causing video stutters/desync
         '-video_size', '1280x720',
         '-framerate', '30',
         '-i', displayNum,
@@ -228,6 +230,7 @@ async function startDirectStreaming() {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
+        '-af', 'aresample=async=1', // NAYA: Forces FFmpeg to intelligently stretch/squeeze audio to perfectly match video frames
         '-f', 'flv',
         RTMP_DESTINATION // Live broadcast to OK.ru
     ]);
