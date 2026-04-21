@@ -73,14 +73,19 @@ async function startDirectStreaming() {
         if (p !== page) await p.close();
     }
 
-    // NAYA: Aggressive Ad-Popup Blocker - instantly closes any new tab that adware tries to open
+    // NAYA: Aggressive Ad-Popup Blocker & Focus Management
     browser.on('targetcreated', async (target) => {
         if (target.type() === 'page') {
             try {
                 const newPage = await target.page();
                 if (newPage && newPage !== page) {
-                    console.log(`[*] Auto-closing popup ad tab to prevent focus stealing!`);
-                    await newPage.close();
+                    console.log(`[*] New tab detected. Bringing video tab back to front and queued for close...`);
+                    // Instantly steal focus back to the video!
+                    await page.bringToFront();
+                    // Wait 2 seconds before closing so Puppeteer-stealth plugin doesn't crash from missing targets
+                    setTimeout(() => {
+                        newPage.close().catch(() => {});
+                    }, 2000);
                 }
             } catch(e) {}
         }
