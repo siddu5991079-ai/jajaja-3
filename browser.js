@@ -6,7 +6,7 @@ const { spawn, execSync } = require('child_process');
 const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 
 const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
-const RTMP_SERVER = 'rtmps://vsu.okcdn.ru/input/';
+const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
 const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
 const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
 
