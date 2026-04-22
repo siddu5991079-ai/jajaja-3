@@ -8,9 +8,9 @@ const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 // 🚀 NAYA: Multi-Stream Key Manager
 const STREAM_KEYS = {
     '1': '14601603391083_14040893622891_puxzrwjniu', // Aapka pehla key
-    '2': 'YOUR_STREAM_KEY_2_HERE', // ⚠️ INKO APNE ASLI KEYS SE REPLACE KAREIN
-    '3': 'YOUR_STREAM_KEY_3_HERE',
-    '4': 'YOUR_STREAM_KEY_4_HERE',
+    '2': '14601696583275_14041072274027_apdzpdb5xi', // ⚠️ INKO APNE ASLI KEYS SE REPLACE KAREIN
+    '3': '14617940008555_14072500914795_ohw67ls7ny',
+    '4': '14601972227691_14041593547371_obdhgewlmq',
     '5': 'YOUR_STREAM_KEY_5_HERE'
 };
 
