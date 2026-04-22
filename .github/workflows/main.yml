@@ -1,12 +1,15 @@
 
 
-
-
 name: 24/7 Live Stream Bot
 
 on:
   workflow_dispatch:
     inputs:
+      target_url: # 🚀 NAYA: URL Input Box
+        description: 'Target Stream URL'
+        required: true
+        type: string
+        default: 'https://dadocric.st/player.php?id=starsp3&v=m'
       use_proxy:
         description: 'Use Proxy (ON or OFF)'
         required: true
@@ -15,7 +18,7 @@ on:
           - 'OFF'
           - 'ON'
         default: 'OFF'
-      stream_quality: # 🚀 NAYA: Quality select karne ka dropdown
+      stream_quality:
         description: 'Internet Speed / Stream Quality'
         required: true
         type: choice
@@ -53,8 +56,9 @@ jobs:
     - name: Start Live Stream
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TARGET_URL: ${{ github.event.inputs.target_url || 'https://dadocric.st/player.php?id=starsp3&v=m' }} # 🚀 NAYA: URL pass ho raha hai
         USE_PROXY: ${{ github.event.inputs.use_proxy || 'OFF' }}
-        STREAM_QUALITY: ${{ github.event.inputs.stream_quality || '110KBps (Balanced 480p)' }} # 🚀 NAYA: Node.js ko input bhej rahe hain
+        STREAM_QUALITY: ${{ github.event.inputs.stream_quality || '110KBps (Balanced 480p)' }}
       run: |
         # Start headless audio server for FFmpeg to capture
         pulseaudio -D --exit-idle-time=-1
@@ -64,6 +68,187 @@ jobs:
 
         # Run Chromium inside a Virtual Monitor with exact 1280x720 HD resolution
         xvfb-run -s "-screen 0 1280x720x24 -ac" node browser.js
+
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ================ great bas aab oopper waley code mei eek new manually input add karna hai taakey mei manually url dee sko ============================
+
+
+
+
+
+# name: 24/7 Live Stream Bot
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       use_proxy:
+#         description: 'Use Proxy (ON or OFF)'
+#         required: true
+#         type: choice
+#         options:
+#           - 'OFF'
+#           - 'ON'
+#         default: 'OFF'
+#       stream_quality: # 🚀 NAYA: Quality select karne ka dropdown
+#         description: 'Internet Speed / Stream Quality'
+#         required: true
+#         type: choice
+#         options:
+#           - '40KBps (Ultra-Low 360p)'
+#           - '110KBps (Balanced 480p)'
+#         default: '110KBps (Balanced 480p)'
+#   schedule:
+#     - cron: '0 */5 * * *'
+
+# permissions:
+#   contents: write
+
+# jobs:
+#   stream:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - name: Get Code
+#       uses: actions/checkout@v3
+
+#     - name: Setup Node.js
+#       uses: actions/setup-node@v3
+#       with:
+#         node-version: '18'
+
+#     - name: Install FFmpeg, Virtual Display, & Audio Server
+#       run: |
+#         sudo apt-get update
+#         sudo apt-get install -y ffmpeg xvfb pulseaudio dbus-x11
+
+#     - name: Install Required Packages
+#       run: npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth puppeteer-screen-recorder
+
+#     - name: Start Live Stream
+#       env:
+#         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         USE_PROXY: ${{ github.event.inputs.use_proxy || 'OFF' }}
+#         STREAM_QUALITY: ${{ github.event.inputs.stream_quality || '110KBps (Balanced 480p)' }} # 🚀 NAYA: Node.js ko input bhej rahe hain
+#       run: |
+#         # Start headless audio server for FFmpeg to capture
+#         pulseaudio -D --exit-idle-time=-1
+#         pacmd load-module module-virtual-sink sink_name=v1
+#         pacmd set-default-sink v1
+#         pacmd set-default-source v1.monitor
+
+#         # Run Chromium inside a Virtual Monitor with exact 1280x720 HD resolution
+#         xvfb-run -s "-screen 0 1280x720x24 -ac" node browser.js
 
 
 
