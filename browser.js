@@ -1,21 +1,6 @@
 
 
 
-
-
-// Agar kisi din dadocric walo ne page ke top par koi aisi ad laga di jo <video> tag use karti ho (jaise kisi game ka promo video), toh aapka bot ghalti se us ad ko pakar lega aur 24/7 us ad ko OK.ru par stream karta rahega!
-
-// 🛡️ Isko 100% Bulletproof Kaise Banayen? (The Smart Upgrade)
-// Kyunke aap ek production-grade system bana rahe hain, aapko document.querySelector('video') ko thora "Smart" banana hoga taake woh Asli Stream aur Ad Video ke beech farq kar sake.
-
-// Asli video ki 2 pehchan hoti hain:
-
-// Uski screen par Width aur Height bari hoti hai (Ads chote hote hain).
-
-// Uska link aam tor par blob: se shuru hota hai (jaise HLS/m3u8 streams hoti hain).
-
-
-
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
@@ -23,7 +8,8 @@ puppeteer.use(StealthPlugin());
 const { spawn, execSync } = require('child_process');
 const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
 
-const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
+// 🚀 NAYA: Ab URL hardcoded nahi hai, balke GitHub Actions input se aayega
+const TARGET_URL = process.env.TARGET_URL || 'https://dadocric.st/player.php?id=starsp3&v=m';
 const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
 const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
 const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
@@ -124,7 +110,7 @@ async function startDirectStreaming() {
 
     const displayNum = process.env.DISPLAY || ':99';
 
-    console.log(`[*] Navigating to target URL using Proxy...`);
+    console.log(`[*] Navigating to target URL: ${TARGET_URL}...`);
     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     console.log('[*] Waiting for potential Cloudflare...');
@@ -389,6 +375,513 @@ process.on('SIGINT', async () => {
 
 // Boot
 mainLoop();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ================ great bas aab oopper waley code mei eek new manually input add karna hai taakey mei manually url dee sko ============================
+
+
+
+
+
+// Agar kisi din dadocric walo ne page ke top par koi aisi ad laga di jo <video> tag use karti ho (jaise kisi game ka promo video), toh aapka bot ghalti se us ad ko pakar lega aur 24/7 us ad ko OK.ru par stream karta rahega!
+
+// 🛡️ Isko 100% Bulletproof Kaise Banayen? (The Smart Upgrade)
+// Kyunke aap ek production-grade system bana rahe hain, aapko document.querySelector('video') ko thora "Smart" banana hoga taake woh Asli Stream aur Ad Video ke beech farq kar sake.
+
+// Asli video ki 2 pehchan hoti hain:
+
+// Uski screen par Width aur Height bari hoti hai (Ads chote hote hain).
+
+// Uska link aam tor par blob: se shuru hota hai (jaise HLS/m3u8 streams hoti hain).
+
+
+
+// const puppeteer = require('puppeteer-extra');
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// puppeteer.use(StealthPlugin());
+
+// const { spawn, execSync } = require('child_process');
+// const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
+
+// const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
+// const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
+// const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
+// const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
+
+// let browser = null;
+// let ffmpegProcess = null;
+
+// // 24/7 Infinite Loop
+// async function mainLoop() {
+//     while (true) {
+//         try {
+//             await startDirectStreaming();
+//             console.log('[!] Stream function resolved unexpectedly. Restarting in 5s...');
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         } catch (error) {
+//             console.error('[!] Global Stream Error: Restarting in 5s...', error.message || error);
+//             await cleanup();
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         }
+//     }
+// }
+
+// async function startDirectStreaming() {
+//     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
+
+//     const useProxy = process.env.USE_PROXY === 'ON';
+//     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
+//     const proxyUser = process.env.PROXY_USER || 'kexwytuq';
+//     const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
+    
+//     // YML file se quality input catch kar rahe hain
+//     const streamQuality = process.env.STREAM_QUALITY || '110KBps (Balanced 480p)';
+
+//     const browserArgs = [
+//         '--no-sandbox',
+//         '--disable-setuid-sandbox',
+//         '--window-size=1280,720',
+//         '--kiosk', // Forces full-screen mode, hiding URL bar
+//         '--autoplay-policy=no-user-gesture-required'
+//     ];
+
+//     if (useProxy) {
+//         browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
+//     }
+
+//     console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
+//     browser = await puppeteer.launch({
+//         channel: 'chrome',
+//         headless: false, // Required for Xvfb display
+//         defaultViewport: { width: 1280, height: 720 },
+//         ignoreDefaultArgs: ['--enable-automation'], // Removes the "Chrome is being controlled" white bar
+//         args: browserArgs
+//     });
+
+//     const page = await browser.newPage();
+
+//     // Clean up default about:blank tab
+//     const pages = await browser.pages();
+//     for (const p of pages) {
+//         if (p !== page) await p.close();
+//     }
+
+//     // Aggressive Ad-Popup Blocker & Focus Management
+//     browser.on('targetcreated', async (target) => {
+//         if (target.type() === 'page') {
+//             try {
+//                 const newPage = await target.page();
+//                 if (newPage && newPage !== page) {
+//                     console.log(`[*] Adware tab detected! Forcing video tab back to foreground visually...`);
+//                     await page.bringToFront(); 
+//                     setTimeout(() => newPage.close().catch(() => { }), 2000);
+//                 }
+//             } catch (e) { }
+//         }
+//     });
+
+//     if (useProxy) {
+//         await page.authenticate({ username: proxyUser, password: proxyPass });
+//         console.log("Proxy credentials applied successfully.");
+//     }
+
+//     // GUI Visual Recorder (20 Sec Debug)
+//     const recorder = new PuppeteerScreenRecorder(page);
+//     await recorder.start('debug_video.mp4');
+//     console.log('🎥 [*] 20-second Visual Debug Recording Started...');
+
+//     setTimeout(async () => {
+//         try {
+//             await recorder.stop();
+//             console.log('🛑 [*] Visual Screen recording stopped. Uploading to GitHub Releases...');
+//             const tagName = `visual-debug-${Date.now()}`;
+//             execSync(`gh release create ${tagName} debug_video.mp4 --title "Puppeteer Visual Capture"`, { stdio: 'inherit' });
+//             console.log('✅ [+] Successfully uploaded visual debug wrapper!');
+//         } catch (err) {
+//             console.error('❌ [!] Failed to upload visual debug wrapper:', err.message);
+//         }
+//     }, 20000);
+
+//     const displayNum = process.env.DISPLAY || ':99';
+
+//     console.log(`[*] Navigating to target URL using Proxy...`);
+//     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+//     console.log('[*] Waiting for potential Cloudflare...');
+//     for (let i = 0; i < 15; i++) {
+//         const title = await page.title();
+//         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
+//         await new Promise(r => setTimeout(r, 1000));
+//     }
+
+//     await new Promise(resolve => setTimeout(resolve, 8000));
+
+//     console.log('[*] Cleaning up ads visually...');
+//     for (const frame of page.frames()) {
+//         try {
+//             await frame.evaluate(() => {
+//                 const adElement = document.querySelector('div#dontfoid');
+//                 if (adElement) adElement.remove();
+//             });
+//         } catch (e) { }
+//     }
+
+//     // =========================================================================
+//     // 🧠 THE SMART SCANNER (Finds the REAL stream, ignores tiny Video Ads)
+//     // =========================================================================
+//     let targetFrame = null;
+//     console.log('[*] Scanning iframes for the REAL Live Stream Video...');
+//     for (const frame of page.frames()) {
+//         try {
+//             const isRealLiveStream = await frame.evaluate(() => {
+//                 const vid = document.querySelector('video');
+                
+//                 // 1. Agar video tag nahi hai toh aage barho
+//                 if (!vid) return false;
+                
+//                 // 2. SIZE CHECK: Agar video choti hai (Ad hai), toh ignore karo
+//                 if (vid.clientWidth < 300 || vid.clientHeight < 200) return false;
+
+//                 // Yeh asli video lag rahi hai
+//                 return true; 
+//             });
+
+//             if (isRealLiveStream) {
+//                 targetFrame = frame;
+//                 console.log(`[+] Smart Scanner selected Real Video in frame: ${frame.url() || 'unknown'}`);
+//                 break; // Asli video mil gayi, mazeed dhoondna band karo
+//             }
+//         } catch (e) { }
+//     }
+
+//     if (!targetFrame) throw new Error('No <video> element could be found.');
+
+//     console.log('[*] Executing Audio Unmute and Wait Logic...');
+//     await targetFrame.evaluate(async () => {
+//         const video = document.querySelector('video');
+//         if (!video) return false;
+//         video.muted = false; 
+//         await video.play().catch(e => {});
+//         return true;
+//     });
+
+//     // =========================================================================
+//     // 🛠️ REUSABLE FUNCTIONS (Watchdog controls these)
+//     // =========================================================================
+
+//     async function applyFullscreenHack() {
+//         console.log('\n[*] Executing Fullscreen Script...');
+//         const debugLogs = await targetFrame.evaluate(async () => {
+//             let terminalLogs = [];
+//             const vid = document.querySelector('video');
+//             if (!vid) return terminalLogs;
+            
+//             try {
+//                 if (vid.requestFullscreen) await vid.requestFullscreen();
+//                 else if (vid.webkitRequestFullscreen) await vid.webkitRequestFullscreen();
+//                 terminalLogs.push("🎉 RESULT: requestFullscreen() SUCCESS!");
+//             } catch (err) {
+//                 vid.style.position = 'fixed';
+//                 vid.style.top = '0';
+//                 vid.style.left = '0';
+//                 vid.style.width = '100vw';
+//                 vid.style.height = '100vh';
+//                 vid.style.zIndex = '2147483647';
+//                 vid.style.backgroundColor = 'black';
+//                 vid.style.objectFit = 'contain';
+//                 terminalLogs.push("✅ RESULT: CSS Force-Stretch Hack Successfully lag gaya!");
+//             }
+//             return terminalLogs;
+//         });
+//         for (const log of debugLogs) console.log(log);
+//         await new Promise(r => setTimeout(r, 2000));
+//     }
+
+//     function startBroadcast() {
+//         if (ffmpegProcess) return; 
+        
+//         let ffmpegArgs = [];
+
+//         // YML Input ke mutabiq dynamic settings
+//         if (streamQuality.includes('40KBps')) {
+//             console.log('\n[*] 🚀 FFmpeg Mode: ULTRA-LOW BANDWIDTH (360p @ 20FPS, 200k Video, 32k Audio)...');
+//             ffmpegArgs = [
+//                 '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//                 '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '20',
+//                 '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//                 '-vf', 'scale=640:360',
+//                 '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'baseline',
+//                 '-b:v', '200k', '-maxrate', '250k', '-bufsize', '500k',
+//                 '-pix_fmt', 'yuv420p', '-g', '40',
+//                 '-c:a', 'aac', '-b:a', '32k', '-ac', '1', '-ar', '44100',
+//                 '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
+//             ];
+//         } else {
+//             console.log('\n[*] 🚀 FFmpeg Mode: BALANCED 480p (854x480 @ 30FPS, 800k Video, 64k Audio)...');
+//             ffmpegArgs = [
+//                 '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//                 '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30',
+//                 '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//                 '-vf', 'scale=854:480',
+//                 '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main',
+//                 '-b:v', '800k', '-maxrate', '850k', '-bufsize', '1700k',
+//                 '-pix_fmt', 'yuv420p', '-g', '60',
+//                 '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-ar', '44100',
+//                 '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
+//             ];
+//         }
+
+//         ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+
+//         let heartbeatCount = 0;
+//         let lastHeartbeatTime = Date.now();
+//         const FIVE_MINUTES = 5 * 60 * 1000;
+
+//         ffmpegProcess.stderr.on('data', (data) => {
+//             const output = data.toString().trim();
+//             if (output.includes('frame=') && output.includes('fps=')) {
+//                 heartbeatCount++;
+//                 const currentTime = Date.now();
+//                 if (heartbeatCount <= 7) {
+//                     console.log(`[FFmpeg ${heartbeatCount}/7]: ${output.substring(0, 100)}`);
+//                     if (heartbeatCount === 7) console.log(`\n[✅ Success] Stream is live! Suppressing logs...`);
+//                 } else if (currentTime - lastHeartbeatTime >= FIVE_MINUTES) {
+//                     console.log(`[FFmpeg 5-Min Check]: ${output.substring(0, 100)}`);
+//                     lastHeartbeatTime = currentTime; 
+//                 }
+//             } else if (output.includes('Error') || output.includes('Failed')) {
+//                 console.log(`\n[FFmpeg Issue]: ${output}`);
+//             }
+//         });
+
+//         ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg exited (Code: ${code})`));
+//     }
+
+//     function stopBroadcast() {
+//         if (ffmpegProcess) {
+//             console.log('\n🛑 [ACTION] Killing FFmpeg Process to stop OK.ru Broadcast!');
+//             try {
+//                 ffmpegProcess.stdin.end();
+//                 ffmpegProcess.kill('SIGKILL'); 
+//             } catch (e) { }
+//             ffmpegProcess = null;
+//         }
+//     }
+
+//     // =========================================================================
+//     // 🚀 INITIAL STARTUP
+//     // =========================================================================
+//     await applyFullscreenHack();
+//     startBroadcast();
+
+//     // =========================================================================
+//     // 🧠 THE SMART WATCHDOG 
+//     // =========================================================================
+//     console.log('\n[*] Smart Engine Connected! Monitoring Video Health 24/7...');
+    
+//     let isBroadcasting = true; 
+//     let lastOfflineLogTime = 0;
+//     const THREE_MINUTES = 3 * 60 * 1000;
+
+//     while (true) {
+//         if (!browser || !browser.isConnected()) throw new Error("Browser closed.");
+
+//         let isVideoHealthy = false;
+//         try {
+//             isVideoHealthy = await targetFrame.evaluate(() => {
+//                 const vid = document.querySelector('video');
+//                 if (!vid || vid.clientWidth === 0 || vid.ended || vid.paused) return false;
+//                 if (vid.clientWidth < (window.innerWidth * 0.5)) return false;
+//                 return true;
+//             });
+//         } catch (e) {
+//             isVideoHealthy = false; 
+            
+//             // Watchdog ko bhi smart bana diya, taake reload hone par asli video hi pakray
+//             for (const frame of page.frames()) {
+//                 try {
+//                     const isRealVid = await frame.evaluate(() => {
+//                         const vid = document.querySelector('video');
+//                         return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
+//                     });
+//                     if (isRealVid) { targetFrame = frame; break; }
+//                 } catch(ex){}
+//             }
+//         }
+
+//         // --- STATE 1: STREAM GOES OFFLINE ---
+//         if (isBroadcasting && !isVideoHealthy) {
+//             console.log('\n=================================================================');
+//             console.log('❌ ❌ ❌ VIDEO STREAM OFFLINE, CRASHED OR PAUSED! ❌ ❌ ❌');
+//             console.log('🛑 STOPPING FFmpeg BROADCAST IMMEDIATELY TO PROTECT VIEWERS!');
+//             console.log('=================================================================\n');
+//             stopBroadcast();
+//             isBroadcasting = false;
+//             lastOfflineLogTime = Date.now();
+//         }
+
+//         // --- STATE 2: WAITING FOR STREAM (Prints every 3 minutes) ---
+//         else if (!isBroadcasting && !isVideoHealthy) {
+//             const timeSinceLastLog = Date.now() - lastOfflineLogTime;
+//             if (timeSinceLastLog >= THREE_MINUTES) {
+//                 console.log('\n=================================================================');
+//                 console.log('⚠️ ⚠️ ⚠️ STATUS: WAITING FOR STREAM ON THE SAME PAGE... ⚠️ ⚠️ ⚠️');
+//                 console.log('⏳ STILL OFFLINE. FFMPEG IS DEAD. WAITING FOR MATCH TO RESUME.');
+//                 console.log('=================================================================\n');
+//                 lastOfflineLogTime = Date.now();
+                
+//                 try { await targetFrame.evaluate(() => { const v = document.querySelector('video'); if(v) v.play(); }); } catch(e){}
+//             }
+//         }
+
+//         // --- STATE 3: STREAM COMES BACK ONLINE! ---
+//         else if (!isBroadcasting && isVideoHealthy) {
+//             console.log('\n=================================================================');
+//             console.log('✅ ✅ ✅ VIDEO STREAM IS BACK ONLINE! ✅ ✅ ✅');
+//             console.log('🔄 RE-APPLYING FULLSCREEN & RESTARTING OK.RU BROADCAST!');
+//             console.log('=================================================================\n');
+//             await applyFullscreenHack();
+//             await new Promise(r => setTimeout(r, 2000));
+//             startBroadcast();
+//             isBroadcasting = true;
+//         }
+
+//         await new Promise(r => setTimeout(r, 3000));
+//     }
+// }
+
+// async function cleanup() {
+//     if (ffmpegProcess) {
+//         try { ffmpegProcess.stdin.end(); ffmpegProcess.kill('SIGINT'); } catch (e) { }
+//         ffmpegProcess = null;
+//     }
+//     if (browser) {
+//         try { await browser.close(); } catch (e) { }
+//         browser = null;
+//     }
+// }
+
+// process.on('SIGINT', async () => {
+//     console.log('\n[*] Stopping live script cleanly...');
+//     await cleanup();
+//     process.exit(0);
+// });
+
+// // Boot
+// mainLoop();
 
 
 
