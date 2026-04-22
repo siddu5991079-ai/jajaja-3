@@ -12,6 +12,7 @@ const STREAM_KEYS = {
     '3': '14617940008555_14072500914795_ohw67ls7ny',
     '4': '14601972227691_14041593547371_obdhgewlmq',
     '5': 'YOUR_STREAM_KEY_5_HERE'
+    
 };
 
 const TARGET_URL = process.env.TARGET_URL || 'https://dadocric.st/player.php?id=starsp3&v=m';
