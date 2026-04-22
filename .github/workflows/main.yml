@@ -7,7 +7,7 @@ on:
         description: 'Target Stream URL'
         required: true
         type: string
-        default: 'https://dadocric.st/player.php?id=starsp3&v=m'
+        default: 'https://dadocric.st/player.php?id=willowextra'
       okru_stream_channel: # 🚀 NAYA: OK.ru Stream Channel Selector
         description: 'OK.ru Broadcast Channel (1 to 5)'
         required: true
