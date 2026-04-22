@@ -1,10 +1,7 @@
 
 
-// Agar stream off ho (ya ads aayen), toh page refresh NAHI karna.
-// Fauran FFmpeg ko kill kar dena hai taake OK.ru par kachra/ads broadcast na hon.
-// Usi page par wait karna hai aur har 3 minute baad GitHub logs mein BIG text print karna hai ke hum wait kar rahe hain.
-// Jaise hi video wapas aaye, usko dobara Fullscreen karna hai aur FFmpeg ko wapas zinda kar ke OK.ru par stream resume kar deni hai.
 
+// below code mein , Ab aapki total stream ka size (200k Video + 32k Audio) = 232 kbps hai. Yeh 40 KB/s (320 kbps) wale internet par bilkul bina ruke (no buffering) chalegi!
 
 
 const puppeteer = require('puppeteer-extra');
@@ -49,7 +46,7 @@ async function startDirectStreaming() {
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--window-size=1280,720',
-        '--kiosk', 
+        '--kiosk', // Forces full-screen mode, hiding URL bar
         '--autoplay-policy=no-user-gesture-required'
     ];
 
@@ -60,14 +57,15 @@ async function startDirectStreaming() {
     console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
     browser = await puppeteer.launch({
         channel: 'chrome',
-        headless: false, 
+        headless: false, // Required for Xvfb display
         defaultViewport: { width: 1280, height: 720 },
-        ignoreDefaultArgs: ['--enable-automation'], 
+        ignoreDefaultArgs: ['--enable-automation'], // Removes the "Chrome is being controlled" white bar
         args: browserArgs
     });
 
     const page = await browser.newPage();
 
+    // Clean up default about:blank tab
     const pages = await browser.pages();
     for (const p of pages) {
         if (p !== page) await p.close();
@@ -92,6 +90,7 @@ async function startDirectStreaming() {
         console.log("Proxy credentials applied successfully.");
     }
 
+    // GUI Visual Recorder (20 Sec Debug)
     const recorder = new PuppeteerScreenRecorder(page);
     await recorder.start('debug_video.mp4');
     console.log('🎥 [*] 20-second Visual Debug Recording Started...');
@@ -156,7 +155,7 @@ async function startDirectStreaming() {
     });
 
     // =========================================================================
-    // 🛠️ REUSABLE FUNCTIONS (Inko Watchdog control karega)
+    // 🛠️ REUSABLE FUNCTIONS (Watchdog controls these)
     // =========================================================================
 
     async function applyFullscreenHack() {
@@ -188,16 +187,47 @@ async function startDirectStreaming() {
     }
 
     function startBroadcast() {
-        if (ffmpegProcess) return; // Agar pehle se chal raha hai toh naya mat banao
+        if (ffmpegProcess) return; 
         
-        console.log('\n[*] 🚀 Spawning FFmpeg to capture raw X11 Display & Broadcast to OK.ru...');
+        console.log('\n[*] 🚀 Spawning FFmpeg in ULTRA-LOW BANDWIDTH Mode (For 40 KB/s Users)...');
         ffmpegProcess = spawn('ffmpeg', [
-            '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
-            '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30',
-            '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
-            '-c:v', 'libx264', '-preset', 'veryfast', '-maxrate', '3000k', '-bufsize', '6000k',
-            '-pix_fmt', 'yuv420p', '-g', '60', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100',
-            '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
+            '-y', 
+            '-use_wallclock_as_timestamps', '1', 
+            '-thread_queue_size', '1024',
+            
+            // 1. Capture at Full HD/720p from Virtual Screen
+            '-f', 'x11grab', 
+            '-draw_mouse', '0', 
+            '-video_size', '1280x720', 
+            '-framerate', '20', // ⬇️ FPS reduced to save data
+            '-i', displayNum, 
+            
+            '-thread_queue_size', '1024', 
+            '-f', 'pulse', 
+            '-i', 'default',
+            
+            // 2. The Magic Scaler: Convert screen to 360p on the fly
+            '-vf', 'scale=640:360', 
+            
+            // 3. Video Encoding (Extreme Compression)
+            '-c:v', 'libx264', 
+            '-preset', 'veryfast', 
+            '-profile:v', 'baseline', // 🌟 NAYA: Best for old phones/slow nets
+            '-b:v', '200k', // ⬇️ Video Bitrate (Super Light)
+            '-maxrate', '250k', 
+            '-bufsize', '500k',
+            '-pix_fmt', 'yuv420p', 
+            '-g', '40', 
+            
+            // 4. Audio Encoding (Data Saver)
+            '-c:a', 'aac', 
+            '-b:a', '32k', // ⬇️ Audio Bitrate
+            '-ac', '1', // 🌟 NAYA: Mono Audio saves 50% data!
+            '-ar', '44100',
+            '-af', 'aresample=async=1', 
+            
+            '-f', 'flv', 
+            RTMP_DESTINATION 
         ]);
 
         let heartbeatCount = 0;
@@ -229,7 +259,7 @@ async function startDirectStreaming() {
             console.log('\n🛑 [ACTION] Killing FFmpeg Process to stop OK.ru Broadcast!');
             try {
                 ffmpegProcess.stdin.end();
-                ffmpegProcess.kill('SIGKILL'); // Zabardasti kill karo
+                ffmpegProcess.kill('SIGKILL'); 
             } catch (e) { }
             ffmpegProcess = null;
         }
@@ -242,11 +272,11 @@ async function startDirectStreaming() {
     startBroadcast();
 
     // =========================================================================
-    // 🧠 THE SMART WATCHDOG (Your requested logic)
+    // 🧠 THE SMART WATCHDOG 
     // =========================================================================
     console.log('\n[*] Smart Engine Connected! Monitoring Video Health 24/7...');
     
-    let isBroadcasting = true; // State tracker
+    let isBroadcasting = true; 
     let lastOfflineLogTime = 0;
     const THREE_MINUTES = 3 * 60 * 1000;
 
@@ -255,19 +285,14 @@ async function startDirectStreaming() {
 
         let isVideoHealthy = false;
         try {
-            // Check if video is playing, visible, and full size
             isVideoHealthy = await targetFrame.evaluate(() => {
                 const vid = document.querySelector('video');
                 if (!vid || vid.clientWidth === 0 || vid.ended || vid.paused) return false;
-                // Agar video screen se bohot choti ho gayi (ads aa gaye) toh offline maano
                 if (vid.clientWidth < (window.innerWidth * 0.5)) return false;
                 return true;
             });
         } catch (e) {
-            // Agar website ne iframe hi refresh kar diya ho
             isVideoHealthy = false; 
-            
-            // Re-find karne ki koshish karo usi page par
             for (const frame of page.frames()) {
                 try {
                     const hasVid = await frame.evaluate(() => !!document.querySelector('video'));
@@ -297,7 +322,6 @@ async function startDirectStreaming() {
                 console.log('=================================================================\n');
                 lastOfflineLogTime = Date.now();
                 
-                // Extra Push: Agar player pause par phansa hai toh usay play karne ki koshish karega
                 try { await targetFrame.evaluate(() => { const v = document.querySelector('video'); if(v) v.play(); }); } catch(e){}
             }
         }
@@ -314,7 +338,6 @@ async function startDirectStreaming() {
             isBroadcasting = true;
         }
 
-        // Har 3 second baad monitor check karega
         await new Promise(r => setTimeout(r, 3000));
     }
 }
@@ -338,6 +361,444 @@ process.on('SIGINT', async () => {
 
 // Boot
 mainLoop();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ===================== opper waley code mei yeh setting add karty hai k kistra see buffering na hu (low data) ========================
+
+
+
+
+
+
+// Agar stream off ho (ya ads aayen), toh page refresh NAHI karna.
+// Fauran FFmpeg ko kill kar dena hai taake OK.ru par kachra/ads broadcast na hon.
+// Usi page par wait karna hai aur har 3 minute baad GitHub logs mein BIG text print karna hai ke hum wait kar rahe hain.
+// Jaise hi video wapas aaye, usko dobara Fullscreen karna hai aur FFmpeg ko wapas zinda kar ke OK.ru par stream resume kar deni hai.
+
+
+
+
+
+
+
+// const puppeteer = require('puppeteer-extra');
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// puppeteer.use(StealthPlugin());
+
+// const { spawn, execSync } = require('child_process');
+// const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
+
+// const TARGET_URL = 'https://dadocric.st/player.php?id=starsp3&v=m';
+// const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
+// const STREAM_KEY = '14601603391083_14040893622891_puxzrwjniu';
+// const RTMP_DESTINATION = `${RTMP_SERVER}${STREAM_KEY}`;
+
+// let browser = null;
+// let ffmpegProcess = null;
+
+// // 24/7 Infinite Loop
+// async function mainLoop() {
+//     while (true) {
+//         try {
+//             await startDirectStreaming();
+//             console.log('[!] Stream function resolved unexpectedly. Restarting in 5s...');
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         } catch (error) {
+//             console.error('[!] Global Stream Error: Restarting in 5s...', error.message || error);
+//             await cleanup();
+//             await new Promise(resolve => setTimeout(resolve, 5000));
+//         }
+//     }
+// }
+
+// async function startDirectStreaming() {
+//     console.log('[*] Starting browser and FFmpeg for LIVE 24/7 Streaming...');
+
+//     const useProxy = process.env.USE_PROXY === 'ON';
+//     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
+//     const proxyUser = process.env.PROXY_USER || 'kexwytuq';
+//     const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
+
+//     const browserArgs = [
+//         '--no-sandbox',
+//         '--disable-setuid-sandbox',
+//         '--window-size=1280,720',
+//         '--kiosk', 
+//         '--autoplay-policy=no-user-gesture-required'
+//     ];
+
+//     if (useProxy) {
+//         browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
+//     }
+
+//     console.log(`Launching Browser on GitHub Actions Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
+//     browser = await puppeteer.launch({
+//         channel: 'chrome',
+//         headless: false, 
+//         defaultViewport: { width: 1280, height: 720 },
+//         ignoreDefaultArgs: ['--enable-automation'], 
+//         args: browserArgs
+//     });
+
+//     const page = await browser.newPage();
+
+//     const pages = await browser.pages();
+//     for (const p of pages) {
+//         if (p !== page) await p.close();
+//     }
+
+//     // Aggressive Ad-Popup Blocker & Focus Management
+//     browser.on('targetcreated', async (target) => {
+//         if (target.type() === 'page') {
+//             try {
+//                 const newPage = await target.page();
+//                 if (newPage && newPage !== page) {
+//                     console.log(`[*] Adware tab detected! Forcing video tab back to foreground visually...`);
+//                     await page.bringToFront(); 
+//                     setTimeout(() => newPage.close().catch(() => { }), 2000);
+//                 }
+//             } catch (e) { }
+//         }
+//     });
+
+//     if (useProxy) {
+//         await page.authenticate({ username: proxyUser, password: proxyPass });
+//         console.log("Proxy credentials applied successfully.");
+//     }
+
+//     const recorder = new PuppeteerScreenRecorder(page);
+//     await recorder.start('debug_video.mp4');
+//     console.log('🎥 [*] 20-second Visual Debug Recording Started...');
+
+//     setTimeout(async () => {
+//         try {
+//             await recorder.stop();
+//             console.log('🛑 [*] Visual Screen recording stopped. Uploading to GitHub Releases...');
+//             const tagName = `visual-debug-${Date.now()}`;
+//             execSync(`gh release create ${tagName} debug_video.mp4 --title "Puppeteer Visual Capture"`, { stdio: 'inherit' });
+//             console.log('✅ [+] Successfully uploaded visual debug wrapper!');
+//         } catch (err) {
+//             console.error('❌ [!] Failed to upload visual debug wrapper:', err.message);
+//         }
+//     }, 20000);
+
+//     const displayNum = process.env.DISPLAY || ':99';
+
+//     console.log(`[*] Navigating to target URL using Proxy...`);
+//     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+//     console.log('[*] Waiting for potential Cloudflare...');
+//     for (let i = 0; i < 15; i++) {
+//         const title = await page.title();
+//         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
+//         await new Promise(r => setTimeout(r, 1000));
+//     }
+
+//     await new Promise(resolve => setTimeout(resolve, 8000));
+
+//     console.log('[*] Cleaning up ads visually...');
+//     for (const frame of page.frames()) {
+//         try {
+//             await frame.evaluate(() => {
+//                 const adElement = document.querySelector('div#dontfoid');
+//                 if (adElement) adElement.remove();
+//             });
+//         } catch (e) { }
+//     }
+
+//     let targetFrame = null;
+//     for (const frame of page.frames()) {
+//         try {
+//             const hasVideo = await frame.evaluate(() => !!document.querySelector('video'));
+//             if (hasVideo) {
+//                 targetFrame = frame;
+//                 console.log(`[+] Found video element inside frame: ${frame.url() || 'unknown'}`);
+//                 break;
+//             }
+//         } catch (e) { }
+//     }
+
+//     if (!targetFrame) throw new Error('No <video> element could be found.');
+
+//     console.log('[*] Executing Audio Unmute and Wait Logic...');
+//     await targetFrame.evaluate(async () => {
+//         const video = document.querySelector('video');
+//         if (!video) return false;
+//         video.muted = false; 
+//         await video.play().catch(e => {});
+//         return true;
+//     });
+
+//     // =========================================================================
+//     // 🛠️ REUSABLE FUNCTIONS (Inko Watchdog control karega)
+//     // =========================================================================
+
+//     async function applyFullscreenHack() {
+//         console.log('\n[*] Executing Fullscreen Script...');
+//         const debugLogs = await targetFrame.evaluate(async () => {
+//             let terminalLogs = [];
+//             const vid = document.querySelector('video');
+//             if (!vid) return terminalLogs;
+            
+//             try {
+//                 if (vid.requestFullscreen) await vid.requestFullscreen();
+//                 else if (vid.webkitRequestFullscreen) await vid.webkitRequestFullscreen();
+//                 terminalLogs.push("🎉 RESULT: requestFullscreen() SUCCESS!");
+//             } catch (err) {
+//                 vid.style.position = 'fixed';
+//                 vid.style.top = '0';
+//                 vid.style.left = '0';
+//                 vid.style.width = '100vw';
+//                 vid.style.height = '100vh';
+//                 vid.style.zIndex = '2147483647';
+//                 vid.style.backgroundColor = 'black';
+//                 vid.style.objectFit = 'contain';
+//                 terminalLogs.push("✅ RESULT: CSS Force-Stretch Hack Successfully lag gaya!");
+//             }
+//             return terminalLogs;
+//         });
+//         for (const log of debugLogs) console.log(log);
+//         await new Promise(r => setTimeout(r, 2000));
+//     }
+
+//     function startBroadcast() {
+//         if (ffmpegProcess) return; // Agar pehle se chal raha hai toh naya mat banao
+        
+//         console.log('\n[*] 🚀 Spawning FFmpeg to capture raw X11 Display & Broadcast to OK.ru...');
+//         ffmpegProcess = spawn('ffmpeg', [
+//             '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//             '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30',
+//             '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//             '-c:v', 'libx264', '-preset', 'veryfast', '-maxrate', '3000k', '-bufsize', '6000k',
+//             '-pix_fmt', 'yuv420p', '-g', '60', '-c:a', 'aac', '-b:a', '128k', '-ar', '44100',
+//             '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
+//         ]);
+
+//         let heartbeatCount = 0;
+//         let lastHeartbeatTime = Date.now();
+//         const FIVE_MINUTES = 5 * 60 * 1000;
+
+//         ffmpegProcess.stderr.on('data', (data) => {
+//             const output = data.toString().trim();
+//             if (output.includes('frame=') && output.includes('fps=')) {
+//                 heartbeatCount++;
+//                 const currentTime = Date.now();
+//                 if (heartbeatCount <= 7) {
+//                     console.log(`[FFmpeg ${heartbeatCount}/7]: ${output.substring(0, 100)}`);
+//                     if (heartbeatCount === 7) console.log(`\n[✅ Success] Stream is live! Suppressing logs...`);
+//                 } else if (currentTime - lastHeartbeatTime >= FIVE_MINUTES) {
+//                     console.log(`[FFmpeg 5-Min Check]: ${output.substring(0, 100)}`);
+//                     lastHeartbeatTime = currentTime; 
+//                 }
+//             } else if (output.includes('Error') || output.includes('Failed')) {
+//                 console.log(`\n[FFmpeg Issue]: ${output}`);
+//             }
+//         });
+
+//         ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg exited (Code: ${code})`));
+//     }
+
+//     function stopBroadcast() {
+//         if (ffmpegProcess) {
+//             console.log('\n🛑 [ACTION] Killing FFmpeg Process to stop OK.ru Broadcast!');
+//             try {
+//                 ffmpegProcess.stdin.end();
+//                 ffmpegProcess.kill('SIGKILL'); // Zabardasti kill karo
+//             } catch (e) { }
+//             ffmpegProcess = null;
+//         }
+//     }
+
+//     // =========================================================================
+//     // 🚀 INITIAL STARTUP
+//     // =========================================================================
+//     await applyFullscreenHack();
+//     startBroadcast();
+
+//     // =========================================================================
+//     // 🧠 THE SMART WATCHDOG (Your requested logic)
+//     // =========================================================================
+//     console.log('\n[*] Smart Engine Connected! Monitoring Video Health 24/7...');
+    
+//     let isBroadcasting = true; // State tracker
+//     let lastOfflineLogTime = 0;
+//     const THREE_MINUTES = 3 * 60 * 1000;
+
+//     while (true) {
+//         if (!browser || !browser.isConnected()) throw new Error("Browser closed.");
+
+//         let isVideoHealthy = false;
+//         try {
+//             // Check if video is playing, visible, and full size
+//             isVideoHealthy = await targetFrame.evaluate(() => {
+//                 const vid = document.querySelector('video');
+//                 if (!vid || vid.clientWidth === 0 || vid.ended || vid.paused) return false;
+//                 // Agar video screen se bohot choti ho gayi (ads aa gaye) toh offline maano
+//                 if (vid.clientWidth < (window.innerWidth * 0.5)) return false;
+//                 return true;
+//             });
+//         } catch (e) {
+//             // Agar website ne iframe hi refresh kar diya ho
+//             isVideoHealthy = false; 
+            
+//             // Re-find karne ki koshish karo usi page par
+//             for (const frame of page.frames()) {
+//                 try {
+//                     const hasVid = await frame.evaluate(() => !!document.querySelector('video'));
+//                     if (hasVid) { targetFrame = frame; break; }
+//                 } catch(ex){}
+//             }
+//         }
+
+//         // --- STATE 1: STREAM GOES OFFLINE ---
+//         if (isBroadcasting && !isVideoHealthy) {
+//             console.log('\n=================================================================');
+//             console.log('❌ ❌ ❌ VIDEO STREAM OFFLINE, CRASHED OR PAUSED! ❌ ❌ ❌');
+//             console.log('🛑 STOPPING FFmpeg BROADCAST IMMEDIATELY TO PROTECT VIEWERS!');
+//             console.log('=================================================================\n');
+//             stopBroadcast();
+//             isBroadcasting = false;
+//             lastOfflineLogTime = Date.now();
+//         }
+
+//         // --- STATE 2: WAITING FOR STREAM (Prints every 3 minutes) ---
+//         else if (!isBroadcasting && !isVideoHealthy) {
+//             const timeSinceLastLog = Date.now() - lastOfflineLogTime;
+//             if (timeSinceLastLog >= THREE_MINUTES) {
+//                 console.log('\n=================================================================');
+//                 console.log('⚠️ ⚠️ ⚠️ STATUS: WAITING FOR STREAM ON THE SAME PAGE... ⚠️ ⚠️ ⚠️');
+//                 console.log('⏳ STILL OFFLINE. FFMPEG IS DEAD. WAITING FOR MATCH TO RESUME.');
+//                 console.log('=================================================================\n');
+//                 lastOfflineLogTime = Date.now();
+                
+//                 // Extra Push: Agar player pause par phansa hai toh usay play karne ki koshish karega
+//                 try { await targetFrame.evaluate(() => { const v = document.querySelector('video'); if(v) v.play(); }); } catch(e){}
+//             }
+//         }
+
+//         // --- STATE 3: STREAM COMES BACK ONLINE! ---
+//         else if (!isBroadcasting && isVideoHealthy) {
+//             console.log('\n=================================================================');
+//             console.log('✅ ✅ ✅ VIDEO STREAM IS BACK ONLINE! ✅ ✅ ✅');
+//             console.log('🔄 RE-APPLYING FULLSCREEN & RESTARTING OK.RU BROADCAST!');
+//             console.log('=================================================================\n');
+//             await applyFullscreenHack();
+//             await new Promise(r => setTimeout(r, 2000));
+//             startBroadcast();
+//             isBroadcasting = true;
+//         }
+
+//         // Har 3 second baad monitor check karega
+//         await new Promise(r => setTimeout(r, 3000));
+//     }
+// }
+
+// async function cleanup() {
+//     if (ffmpegProcess) {
+//         try { ffmpegProcess.stdin.end(); ffmpegProcess.kill('SIGINT'); } catch (e) { }
+//         ffmpegProcess = null;
+//     }
+//     if (browser) {
+//         try { await browser.close(); } catch (e) { }
+//         browser = null;
+//     }
+// }
+
+// process.on('SIGINT', async () => {
+//     console.log('\n[*] Stopping live script cleanly...');
+//     await cleanup();
+//     process.exit(0);
+// });
+
+// // Boot
+// mainLoop();
 
 
 
