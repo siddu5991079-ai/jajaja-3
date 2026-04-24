@@ -35,8 +35,8 @@ on:
           - '40KBps (Ultra-Low 360p)'
           - '110KBps (Balanced 480p)'
         default: '110KBps (Balanced 480p)'
-  schedule:
-    - cron: '0 */5 * * *'
+  # schedule:
+  #   - cron: '0 */5 * * *'
 # Runs at 0 minutes past the hour. every 5 hours (matlb har 5 hours k baaad yeh khud ba khud run ho jata hai yeh actin)
 
 permissions:
