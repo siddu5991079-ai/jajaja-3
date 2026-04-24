@@ -44,6 +44,7 @@ async function mainLoop() {
 }
 
 // 📡 FFMPEG ENGINE (Yeh ab crash nahi hoga)
+// 📡 FFMPEG ENGINE (Sync Fix Applied)
 function startBroadcast() {
     if (ffmpegProcess) return; 
 
@@ -52,22 +53,26 @@ function startBroadcast() {
     const streamQuality = process.env.STREAM_QUALITY || '110KBps (Balanced 480p)';
     let ffmpegArgs = [];
 
+    // AUDIO DELAY SETTING: 0.5 seconds (500ms) delay. 
+    // Agar video phir bhi late ho toh isko '0.8' kar dein, agar audio late ho jaye toh '0.3' kar dein.
+    const AUDIO_DELAY = '0.5'; 
+
     if (streamQuality.includes('40KBps')) {
         ffmpegArgs = [
-            '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
-            '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '20',
-            '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+            '-y', '-use_wallclock_as_timestamps', '1', 
+            '-thread_queue_size', '1024', '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '20', '-i', displayNum, 
+            '-thread_queue_size', '1024', '-itsoffset', AUDIO_DELAY, '-f', 'pulse', '-i', 'default', // 👈 Audio Offset Added Here
             '-vf', 'scale=640:360', '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'baseline',
-            '-b:v', '200k', '-maxrate', '250k', '-bufsize', '500k', '-pix_fmt', 'yuv420p', '-g', '40',
+            '-b:v', '200k', '-maxrate', '250k', '-bufsize', '500k', '-pix_fmt', 'yuv420p', '-g', '40', '-fps_mode', 'cfr', // 👈 CFR added
             '-c:a', 'aac', '-b:a', '32k', '-ac', '1', '-ar', '44100', '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
         ];
     } else {
         ffmpegArgs = [
-            '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
-            '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30',
-            '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+            '-y', '-use_wallclock_as_timestamps', '1', 
+            '-thread_queue_size', '1024', '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30', '-i', displayNum, 
+            '-thread_queue_size', '1024', '-itsoffset', AUDIO_DELAY, '-f', 'pulse', '-i', 'default', // 👈 Audio Offset Added Here
             '-vf', 'scale=854:480', '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main',
-            '-b:v', '800k', '-maxrate', '850k', '-bufsize', '1700k', '-pix_fmt', 'yuv420p', '-g', '60',
+            '-b:v', '800k', '-maxrate', '850k', '-bufsize', '1700k', '-pix_fmt', 'yuv420p', '-g', '60', '-fps_mode', 'cfr', // 👈 CFR added
             '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-ar', '44100', '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
         ];
     }
@@ -94,6 +99,57 @@ function startBroadcast() {
         }
     });
 }
+
+// function startBroadcast() {
+//     if (ffmpegProcess) return; 
+
+//     console.log(`\n[*] 🚀 Starting FFmpeg Engine for OK.ru CHANNEL: ${SELECTED_CHANNEL}...`);
+//     const displayNum = process.env.DISPLAY || ':99';
+//     const streamQuality = process.env.STREAM_QUALITY || '110KBps (Balanced 480p)';
+//     let ffmpegArgs = [];
+
+//     if (streamQuality.includes('40KBps')) {
+//         ffmpegArgs = [
+//             '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//             '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '20',
+//             '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//             '-vf', 'scale=640:360', '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'baseline',
+//             '-b:v', '200k', '-maxrate', '250k', '-bufsize', '500k', '-pix_fmt', 'yuv420p', '-g', '40',
+//             '-c:a', 'aac', '-b:a', '32k', '-ac', '1', '-ar', '44100', '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
+//         ];
+//     } else {
+//         ffmpegArgs = [
+//             '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//             '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30',
+//             '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//             '-vf', 'scale=854:480', '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main',
+//             '-b:v', '800k', '-maxrate', '850k', '-bufsize', '1700k', '-pix_fmt', 'yuv420p', '-g', '60',
+//             '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-ar', '44100', '-af', 'aresample=async=1', '-f', 'flv', RTMP_DESTINATION 
+//         ];
+//     }
+
+//     ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+
+//     let heartbeatCount = 0;
+//     let lastHeartbeatTime = Date.now();
+//     const FIVE_MINUTES = 5 * 60 * 1000;
+
+//     ffmpegProcess.stderr.on('data', (data) => {
+//         const output = data.toString().trim();
+//         if (output.includes('frame=') && output.includes('fps=')) {
+//             heartbeatCount++;
+//             const currentTime = Date.now();
+//             if (heartbeatCount <= 5) {
+//                 console.log(`[FFmpeg Active]: ${output.substring(0, 100)}`);
+//             } else if (currentTime - lastHeartbeatTime >= FIVE_MINUTES) {
+//                 console.log(`[FFmpeg 5-Min Check]: ${output.substring(0, 100)}`);
+//                 lastHeartbeatTime = currentTime; 
+//             }
+//         } else if (output.includes('Error') || output.includes('Failed')) {
+//             console.log(`\n[FFmpeg Issue]: ${output}`);
+//         }
+//     });
+// }
 
 // =========================================================================
 // 🌐 PUPPETEER ENGINE
