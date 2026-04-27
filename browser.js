@@ -585,7 +585,7 @@ async function startDirectStreaming() {
     console.log('[*] Scanning for the REAL Live Stream Video...');
     
     const mainPageHasVideo = await page.evaluate(() => {
-        const vid = document.querySelector('video');
+        const vid = document.querySelector('video[data-html5-video]') || document.querySelector('video');
         return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
     }).catch(() => false);
 
@@ -595,14 +595,13 @@ async function startDirectStreaming() {
         for (const frame of page.frames()) {
             try {
                 const hasVideo = await frame.evaluate(() => {
-                    const vid = document.querySelector('video');
+                    const vid = document.querySelector('video[data-html5-video]') || document.querySelector('video');
                     return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
                 });
 
                 if (hasVideo) {
                     videoContext = frame;
                     isIframe = true;
-                    // 🔥 MAGIC FIX: Asli iframe ko ek makhsoos ID de do taake baad mein pehchan sakein
                     try {
                         const frameElement = await frame.frameElement();
                         await page.evaluate((el) => { el.id = 'the-real-video-iframe'; }, frameElement);
@@ -616,13 +615,15 @@ async function startDirectStreaming() {
     }
 
     // =========================================================================
-    // 🔊 AUDIO UNLOCKER + UI HIDER
+    // 🔊 AUDIO UNLOCKER + UI HIDER (Fixed CSS Logic)
     // =========================================================================
     console.log('[*] Stealth Mode: Unmuting video and hiding player UI...');
     await videoContext.evaluate(async () => {
         const style = document.createElement('style');
         style.innerHTML = `
-            .jw-controls, .jw-ui, .plyr__controls, .vjs-control-bar, .clappr-core, 
+            /* 🔥 FIXED CSS: Hum player (clappr-core) ko nahi chupayenge, sirf uske UI elements ko chupayenge! */
+            .jw-controls, .jw-ui, .plyr__controls, .vjs-control-bar, 
+            .media-control, .clappr-watermark, .player-poster, .play-wrapper, .spinner-three-bounce,
             [data-player] .controls, .unmute-overlay, .play-overlay, button, 
             .dplayer-controller, .dplayer-notice {
                 display: none !important;
@@ -633,7 +634,7 @@ async function startDirectStreaming() {
         `;
         document.head.appendChild(style);
 
-        const video = document.querySelector('video');
+        const video = document.querySelector('video[data-html5-video]') || document.querySelector('video');
         if (video) {
             video.muted = false; 
             video.volume = 1.0; 
@@ -722,11 +723,9 @@ async function startDirectStreaming() {
             document.body.style.backgroundColor = 'black';
             document.body.style.overflow = 'hidden';
             
-            // Sab iframes check karo
             const iframes = document.querySelectorAll('iframe');
             iframes.forEach(iframe => {
                 if (iframe.id === 'the-real-video-iframe') {
-                    // Sirf asli video wale iframe ko poori screen par lao
                     iframe.style.position = 'fixed';
                     iframe.style.top = '0';
                     iframe.style.left = '0';
@@ -737,33 +736,30 @@ async function startDirectStreaming() {
                     iframe.style.border = 'none';
                     iframe.style.display = 'block';
                 } else {
-                    // Chat iframes ya ads ko foran chupao!
                     iframe.style.display = 'none';
                 }
             });
 
-            // Agar chat kisi 'div' mein hai, toh body ke tamaam faltoo divs bhi ghayab karo
             Array.from(document.body.children).forEach(child => {
                 if (child.tagName !== 'IFRAME' && child.tagName !== 'SCRIPT' && child.tagName !== 'STYLE' && child.id !== 'main-watchdog-overlay') {
                     child.style.display = 'none';
                 }
             });
-
         }).catch(() => {});
 
-        // 🔍 STEP 2: CHECK VIDEO STATUS
+        // 🔍 STEP 2: CHECK VIDEO STATUS & FORCE VISIBILITY
         const status = await videoContext.evaluate(() => {
             const bodyText = document.body.innerText.toLowerCase();
             if (bodyText.includes("stream error") || bodyText.includes("could not be loaded")) {
                 return 'CRITICAL_ERROR';
             }
 
-            const v = document.querySelector('video');
+            const v = document.querySelector('video[data-html5-video]') || document.querySelector('video');
             if (!v || v.ended) return 'DEAD';
 
             if (v.readyState < 2) return 'BUFFERING';
 
-            // Enforce Video Stretch inside iframe
+            // 🔥 MAGIC FIX: Force the video tag itself to be fully visible and on top
             v.style.position = 'fixed';
             v.style.top = '0';
             v.style.left = '0';
@@ -772,6 +768,9 @@ async function startDirectStreaming() {
             v.style.zIndex = '2147483647';
             v.style.backgroundColor = 'black';
             v.style.objectFit = 'contain';
+            v.style.opacity = '1';
+            v.style.visibility = 'visible';
+            v.style.display = 'block';
 
             return 'HEALTHY';
         }).catch(() => 'EVAL_ERROR');
@@ -877,7 +876,6 @@ setTimeout(async () => {
 }, 21000000); 
 
 mainLoop();
-
 
 
 
