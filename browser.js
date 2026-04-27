@@ -469,6 +469,30 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
@@ -552,7 +576,6 @@ async function startDirectStreaming() {
             try {
                 const newPage = await target.page();
                 if (newPage && newPage !== page) {
-                    console.log(`[*] Adware tab detected! Forcing video tab back...`);
                     await page.bringToFront(); 
                     setTimeout(() => newPage.close().catch(() => { }), 2000);
                 }
@@ -585,7 +608,7 @@ async function startDirectStreaming() {
     console.log('[*] Scanning for the REAL Live Stream Video...');
     
     const mainPageHasVideo = await page.evaluate(() => {
-        const vid = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+        const vid = document.querySelector('video');
         return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
     }).catch(() => false);
 
@@ -595,13 +618,14 @@ async function startDirectStreaming() {
         for (const frame of page.frames()) {
             try {
                 const hasVideo = await frame.evaluate(() => {
-                    const vid = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+                    const vid = document.querySelector('video');
                     return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
                 });
 
                 if (hasVideo) {
                     videoContext = frame;
                     isIframe = true;
+                    // Iframe ko pakar kar ID dedo taake Chat ko alag kar sakein
                     try {
                         const frameElement = await frame.frameElement();
                         await page.evaluate((el) => { el.id = 'the-real-video-iframe'; }, frameElement);
@@ -615,34 +639,58 @@ async function startDirectStreaming() {
     }
 
     // =========================================================================
-    // 🔊 AUDIO UNLOCKER + UI HIDER (Fixed CSS Logic)
+    // 🎯 THE NEW FIX: ORGANIC MOUSE TRICK (NO AGGRESSIVE CSS)
     // =========================================================================
-    console.log('[*] Stealth Mode: Unmuting video and hiding player UI...');
+    console.log('[*] Organic Stealth Mode: Unmuting via JS & Human Mouse Trick...');
+    
+    // 1. Raw element se aawaz kholo & Screen stretch karo
     await videoContext.evaluate(async () => {
-        const style = document.createElement('style');
-        style.innerHTML = `
-            /* 🔥 FIXED CSS: Hum player (clappr-core) ko nahi chupayenge, sirf uske UI elements ko chupayenge! */
-            .jw-controls, .jw-ui, .plyr__controls, .vjs-control-bar, 
-            .media-control, .clappr-watermark, .player-poster, .play-wrapper, .spinner-three-bounce,
-            [data-player] .controls, .unmute-overlay, .play-overlay, button, 
-            .dplayer-controller, .dplayer-notice {
-                display: none !important;
-                opacity: 0 !important;
-                visibility: hidden !important;
-                pointer-events: none !important;
-            }
-        `;
-        document.head.appendChild(style);
-
-        const video = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+        const video = document.querySelector('video');
         if (video) {
             video.muted = false; 
             video.volume = 1.0; 
             await video.play().catch(e => {});
+
+            // Force Video Stretch (Bina kisi player class ko chupaye)
+            video.style.position = 'fixed';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.width = '100vw';
+            video.style.height = '100vh';
+            video.style.zIndex = '2147483647';
+            video.style.backgroundColor = 'black';
+            video.style.objectFit = 'contain';
         }
     });
 
-    await new Promise(r => setTimeout(r, 2000));
+    // 2. Main Page iframe stretch (Baqi iframes jese chat hide honge)
+    await page.evaluate(() => {
+        document.body.style.backgroundColor = 'black';
+        document.body.style.overflow = 'hidden';
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+            if (iframe.id === 'the-real-video-iframe') {
+                iframe.style.position = 'fixed';
+                iframe.style.top = '0'; iframe.style.left = '0';
+                iframe.style.width = '100vw'; iframe.style.height = '100vh';
+                iframe.style.zIndex = '999999'; iframe.style.display = 'block';
+            } else {
+                iframe.style.display = 'none'; // CHAT BOX KHATAM
+            }
+        });
+    });
+
+    // 3. The Mouse Trick (Simulate human clicking center, then hiding mouse)
+    try {
+        await page.mouse.move(640, 360); // Move to exact center
+        await page.mouse.click(640, 360, { delay: 100 }); // Click to remove "Unmute" banner
+        console.log('[+] Human Click simulated in center.');
+        
+        await page.mouse.move(5, 5); // Move mouse to corner
+        console.log('[+] Mouse hidden in corner. Player UI will fade automatically.');
+    } catch(e) {}
+
+    await new Promise(r => setTimeout(r, 4000)); // Wait for player UI to fade out
 
     // =========================================================================
     // 📡 FFMPEG BROADCAST
@@ -709,7 +757,7 @@ async function startDirectStreaming() {
     startBroadcast();
 
     // =========================================================================
-    // 🧠 THE SMART WATCHDOG (Chat Killer & Privacy Enforcer)
+    // 🧠 THE SMART WATCHDOG (Safe Monitoring)
     // =========================================================================
     console.log('\n[*] Smart Engine Connected! Monitoring Video Health & Privacy 24/7...');
 
@@ -718,48 +766,33 @@ async function startDirectStreaming() {
     while (true) {
         if (!browser || !browser.isConnected()) throw new Error("Browser closed.");
 
-        // 🛡️ STEP 1: CHAT KILLER & SELECTIVE IFRAME STRETCH
+        // 🛡️ STEP 1: CONSTANTLY ENFORCE CHAT KILLER
         await page.evaluate(() => {
             document.body.style.backgroundColor = 'black';
-            document.body.style.overflow = 'hidden';
-            
             const iframes = document.querySelectorAll('iframe');
             iframes.forEach(iframe => {
-                if (iframe.id === 'the-real-video-iframe') {
-                    iframe.style.position = 'fixed';
-                    iframe.style.top = '0';
-                    iframe.style.left = '0';
-                    iframe.style.width = '100vw';
-                    iframe.style.height = '100vh';
-                    iframe.style.zIndex = '999999'; 
-                    iframe.style.backgroundColor = 'black';
-                    iframe.style.border = 'none';
-                    iframe.style.display = 'block';
-                } else {
-                    iframe.style.display = 'none';
-                }
-            });
-
-            Array.from(document.body.children).forEach(child => {
-                if (child.tagName !== 'IFRAME' && child.tagName !== 'SCRIPT' && child.tagName !== 'STYLE' && child.id !== 'main-watchdog-overlay') {
-                    child.style.display = 'none';
-                }
+                if (iframe.id !== 'the-real-video-iframe') iframe.style.display = 'none';
             });
         }).catch(() => {});
 
-        // 🔍 STEP 2: CHECK VIDEO STATUS & FORCE VISIBILITY
+        // 🔍 STEP 2: CHECK VIDEO STATUS (Without breaking UI)
         const status = await videoContext.evaluate(() => {
             const bodyText = document.body.innerText.toLowerCase();
             if (bodyText.includes("stream error") || bodyText.includes("could not be loaded")) {
                 return 'CRITICAL_ERROR';
             }
 
-            const v = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+            const v = document.querySelector('video');
             if (!v || v.ended) return 'DEAD';
 
-            if (v.readyState < 2) return 'BUFFERING';
+            // Safe Unmute Text Remover: Agar "Unmute" likha koi div phase, usay safai se hatao
+            document.querySelectorAll('div, span').forEach(el => {
+                if (el.innerText && el.innerText.trim().toLowerCase() === 'unmute') {
+                    el.style.display = 'none';
+                }
+            });
 
-            // 🔥 MAGIC FIX: Force the video tag itself to be fully visible and on top
+            // Enforce Video Stretch again just to be safe
             v.style.position = 'fixed';
             v.style.top = '0';
             v.style.left = '0';
@@ -768,14 +801,12 @@ async function startDirectStreaming() {
             v.style.zIndex = '2147483647';
             v.style.backgroundColor = 'black';
             v.style.objectFit = 'contain';
-            v.style.opacity = '1';
-            v.style.visibility = 'visible';
-            v.style.display = 'block';
 
+            if (v.readyState < 2) return 'BUFFERING';
             return 'HEALTHY';
         }).catch(() => 'EVAL_ERROR');
 
-        // 🛑 STEP 3: BUFFERING OVERLAY
+        // 🛑 STEP 3: BUFFERING OVERLAY (The Black Curtain is Safe)
         if (status === 'BUFFERING') {
             await page.evaluate(() => {
                 let overlay = document.getElementById('main-watchdog-overlay');
@@ -798,6 +829,7 @@ async function startDirectStreaming() {
             }).catch(() => {});
 
             bufferCounter++;
+            console.log(`[!] Video is buffering... showing Secure Holding Screen. (${bufferCounter}/15)`);
             if (bufferCounter > 15) throw new Error("Video stuck in buffering for too long.");
         } else {
             await page.evaluate(() => {
@@ -844,13 +876,10 @@ setTimeout(async () => {
     
     const workflowFileName = 'main.yml'; 
 
-    if (!repo || !token) {
-        console.log("[!] GitHub Token (GH_PAT) ya Repo data nahi mila. Auto-trigger skip kar raha hu.");
-        return;
-    }
+    if (!repo || !token) return;
 
     try {
-        const response = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflowFileName}/dispatches`, {
+        await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflowFileName}/dispatches`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/vnd.github.v3+json',
@@ -866,16 +895,432 @@ setTimeout(async () => {
                 }
             })
         });
-
-        if (response.ok) {
-            console.log("[+] Next workflow run successfully triggered!");
-        } else {
-            console.error("[-] GitHub API error.");
-        }
     } catch (err) {}
 }, 21000000); 
 
 mainLoop();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// const puppeteer = require('puppeteer-extra');
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// puppeteer.use(StealthPlugin());
+
+// const { spawn, execSync } = require('child_process');
+// const { PuppeteerScreenRecorder } = require('puppeteer-screen-recorder');
+
+// // 🚀 Multi-Stream Key Manager
+// const STREAM_KEYS = {
+//     '1': '14601603391083_14040893622891_puxzrwjniu', 
+//     '2': '14601696583275_14041072274027_apdzpdb5xi', 
+//     '3': '14617940008555_14072500914795_ohw67ls7ny',
+//     '4': '14601972227691_14041593547371_obdhgewlmq',
+//     '5': 'YOUR_STREAM_KEY_5_HERE'
+// };
+
+// const TARGET_URL = process.env.TARGET_URL || 'https://dadocric.st/player.php?id=starsp3&v=m';
+// const SELECTED_CHANNEL = process.env.OKRU_STREAM_ID || '1';
+// const ACTIVE_STREAM_KEY = STREAM_KEYS[SELECTED_CHANNEL] || STREAM_KEYS['1'];
+
+// const RTMP_SERVER = 'rtmp://vsu.okcdn.ru/input/';
+// const RTMP_DESTINATION = `${RTMP_SERVER}${ACTIVE_STREAM_KEY}`;
+
+// let browser = null;
+// let ffmpegProcess = null;
+
+// // =========================================================================
+// // 🔄 MAIN LOOP
+// // =========================================================================
+// async function mainLoop() {
+//     while (true) {
+//         try {
+//             await startDirectStreaming();
+//         } catch (error) {
+//             console.error(`\n[!] ALERT: ${error.message}`);
+//             console.log('[*] 🔄 Restarting everything in 3 seconds as requested...');
+//             await cleanup();
+//             await new Promise(resolve => setTimeout(resolve, 3000));
+//         }
+//     }
+// }
+
+// async function startDirectStreaming() {
+//     console.log(`[*] Starting browser and FFmpeg...`);
+//     console.log(`[+] Broadcasting to OK.ru CHANNEL: ${SELECTED_CHANNEL}`);
+
+//     const useProxy = process.env.USE_PROXY === 'ON';
+//     const proxyIpPort = process.env.PROXY_IP_PORT || '31.59.20.176:6754';
+//     const proxyUser = process.env.PROXY_USER || 'kexwytuq';
+//     const proxyPass = process.env.PROXY_PASS || 'fw1k19a4lqfd';
+    
+//     const streamQuality = process.env.STREAM_QUALITY || '110KBps (Balanced 480p)';
+
+//     const browserArgs = [
+//         '--no-sandbox',
+//         '--disable-setuid-sandbox',
+//         '--window-size=1280,720',
+//         '--kiosk', 
+//         '--autoplay-policy=no-user-gesture-required' 
+//     ];
+
+//     if (useProxy) browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
+
+//     console.log(`Launching Browser on Virtual Screen with Proxy: ${useProxy ? 'ON' : 'OFF'}...`);
+//     browser = await puppeteer.launch({
+//         channel: 'chrome',
+//         headless: false, 
+//         defaultViewport: { width: 1280, height: 720 },
+//         ignoreDefaultArgs: ['--enable-automation'], 
+//         args: browserArgs
+//     });
+
+//     const page = await browser.newPage();
+//     const pages = await browser.pages();
+//     for (const p of pages) {
+//         if (p !== page) await p.close();
+//     }
+
+//     browser.on('targetcreated', async (target) => {
+//         if (target.type() === 'page') {
+//             try {
+//                 const newPage = await target.page();
+//                 if (newPage && newPage !== page) {
+//                     console.log(`[*] Adware tab detected! Forcing video tab back...`);
+//                     await page.bringToFront(); 
+//                     setTimeout(() => newPage.close().catch(() => { }), 2000);
+//                 }
+//             } catch (e) { }
+//         }
+//     });
+
+//     if (useProxy) await page.authenticate({ username: proxyUser, password: proxyPass });
+
+//     const displayNum = process.env.DISPLAY || ':99';
+
+//     console.log(`[*] Navigating to target URL: ${TARGET_URL}...`);
+//     await page.goto(TARGET_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+//     console.log('[*] Waiting for potential Cloudflare...');
+//     for (let i = 0; i < 15; i++) {
+//         const title = await page.title();
+//         if (!title.includes('Moment') && !title.includes('Cloudflare')) break;
+//         await new Promise(r => setTimeout(r, 1000));
+//     }
+
+//     await new Promise(resolve => setTimeout(resolve, 8000));
+
+//     // =========================================================================
+//     // 🧠 UNIVERSAL SCANNER: CHAT KILLER & TARGET MARKER
+//     // =========================================================================
+//     let videoContext = page; 
+//     let isIframe = false;
+
+//     console.log('[*] Scanning for the REAL Live Stream Video...');
+    
+//     const mainPageHasVideo = await page.evaluate(() => {
+//         const vid = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+//         return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
+//     }).catch(() => false);
+
+//     if (mainPageHasVideo) {
+//         console.log(`[+] Found video on the main page directly.`);
+//     } else {
+//         for (const frame of page.frames()) {
+//             try {
+//                 const hasVideo = await frame.evaluate(() => {
+//                     const vid = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+//                     return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
+//                 });
+
+//                 if (hasVideo) {
+//                     videoContext = frame;
+//                     isIframe = true;
+//                     try {
+//                         const frameElement = await frame.frameElement();
+//                         await page.evaluate((el) => { el.id = 'the-real-video-iframe'; }, frameElement);
+//                     } catch(e) {}
+                    
+//                     console.log(`[+] Found video inside iframe and marked it!`);
+//                     break;
+//                 }
+//             } catch (e) { }
+//         }
+//     }
+
+//     // =========================================================================
+//     // 🔊 AUDIO UNLOCKER + UI HIDER (Fixed CSS Logic)
+//     // =========================================================================
+//     console.log('[*] Stealth Mode: Unmuting video and hiding player UI...');
+//     await videoContext.evaluate(async () => {
+//         const style = document.createElement('style');
+//         style.innerHTML = `
+//             /* 🔥 FIXED CSS: Hum player (clappr-core) ko nahi chupayenge, sirf uske UI elements ko chupayenge! */
+//             .jw-controls, .jw-ui, .plyr__controls, .vjs-control-bar, 
+//             .media-control, .clappr-watermark, .player-poster, .play-wrapper, .spinner-three-bounce,
+//             [data-player] .controls, .unmute-overlay, .play-overlay, button, 
+//             .dplayer-controller, .dplayer-notice {
+//                 display: none !important;
+//                 opacity: 0 !important;
+//                 visibility: hidden !important;
+//                 pointer-events: none !important;
+//             }
+//         `;
+//         document.head.appendChild(style);
+
+//         const video = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+//         if (video) {
+//             video.muted = false; 
+//             video.volume = 1.0; 
+//             await video.play().catch(e => {});
+//         }
+//     });
+
+//     await new Promise(r => setTimeout(r, 2000));
+
+//     // =========================================================================
+//     // 📡 FFMPEG BROADCAST
+//     // =========================================================================
+//     function startBroadcast() {
+//         if (ffmpegProcess) return; 
+        
+//         let ffmpegArgs = [];
+
+//         if (streamQuality.includes('40KBps')) {
+//             console.log('\n[*] 🚀 FFmpeg Mode: ULTRA-LOW BANDWIDTH (360p @ 20FPS)...');
+//             ffmpegArgs = [
+//                 '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//                 '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '20',
+//                 '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//                 '-vf', 'scale=640:360',
+//                 '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'baseline',
+//                 '-b:v', '200k', '-maxrate', '250k', '-bufsize', '500k',
+//                 '-pix_fmt', 'yuv420p', '-g', '40', '-max_muxing_queue_size', '1024',
+//                 '-c:a', 'aac', '-b:a', '32k', '-ac', '1', '-ar', '44100',
+//                 '-async', '1', '-f', 'flv', RTMP_DESTINATION 
+//             ];
+//         } else {
+//             console.log('\n[*] 🚀 FFmpeg Mode: BALANCED 480p (854x480 @ 30FPS)...');
+//             ffmpegArgs = [
+//                 '-y', '-use_wallclock_as_timestamps', '1', '-thread_queue_size', '1024',
+//                 '-f', 'x11grab', '-draw_mouse', '0', '-video_size', '1280x720', '-framerate', '30',
+//                 '-i', displayNum, '-thread_queue_size', '1024', '-f', 'pulse', '-i', 'default',
+//                 '-vf', 'scale=854:480',
+//                 '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main',
+//                 '-b:v', '800k', '-maxrate', '850k', '-bufsize', '1700k',
+//                 '-pix_fmt', 'yuv420p', '-g', '60', '-max_muxing_queue_size', '1024',
+//                 '-c:a', 'aac', '-b:a', '64k', '-ac', '2', '-ar', '44100',
+//                 '-async', '1', '-f', 'flv', RTMP_DESTINATION 
+//             ];
+//         }
+
+//         ffmpegProcess = spawn('ffmpeg', ffmpegArgs);
+
+//         let heartbeatCount = 0;
+//         let lastHeartbeatTime = Date.now();
+//         const FIVE_MINUTES = 5 * 60 * 1000;
+
+//         ffmpegProcess.stderr.on('data', (data) => {
+//             const output = data.toString().trim();
+//             if (output.includes('frame=') && output.includes('fps=')) {
+//                 heartbeatCount++;
+//                 const currentTime = Date.now();
+//                 if (heartbeatCount <= 7) {
+//                     console.log(`[FFmpeg ${heartbeatCount}/7]: ${output.substring(0, 100)}`);
+//                     if (heartbeatCount === 7) console.log(`\n[✅ Success] Stream is live! Background mode active...`);
+//                 } else if (currentTime - lastHeartbeatTime >= FIVE_MINUTES) {
+//                     console.log(`[FFmpeg 5-Min Health Check]: ${output.substring(0, 100)}`);
+//                     lastHeartbeatTime = currentTime; 
+//                 }
+//             } else if (output.includes('Error') || output.includes('Failed')) {
+//                 console.log(`\n[FFmpeg Issue]: ${output}`);
+//             }
+//         });
+
+//         ffmpegProcess.on('close', (code) => console.log(`\n[*] FFmpeg exited (Code: ${code})`));
+//     }
+
+//     startBroadcast();
+
+//     // =========================================================================
+//     // 🧠 THE SMART WATCHDOG (Chat Killer & Privacy Enforcer)
+//     // =========================================================================
+//     console.log('\n[*] Smart Engine Connected! Monitoring Video Health & Privacy 24/7...');
+
+//     let bufferCounter = 0; 
+
+//     while (true) {
+//         if (!browser || !browser.isConnected()) throw new Error("Browser closed.");
+
+//         // 🛡️ STEP 1: CHAT KILLER & SELECTIVE IFRAME STRETCH
+//         await page.evaluate(() => {
+//             document.body.style.backgroundColor = 'black';
+//             document.body.style.overflow = 'hidden';
+            
+//             const iframes = document.querySelectorAll('iframe');
+//             iframes.forEach(iframe => {
+//                 if (iframe.id === 'the-real-video-iframe') {
+//                     iframe.style.position = 'fixed';
+//                     iframe.style.top = '0';
+//                     iframe.style.left = '0';
+//                     iframe.style.width = '100vw';
+//                     iframe.style.height = '100vh';
+//                     iframe.style.zIndex = '999999'; 
+//                     iframe.style.backgroundColor = 'black';
+//                     iframe.style.border = 'none';
+//                     iframe.style.display = 'block';
+//                 } else {
+//                     iframe.style.display = 'none';
+//                 }
+//             });
+
+//             Array.from(document.body.children).forEach(child => {
+//                 if (child.tagName !== 'IFRAME' && child.tagName !== 'SCRIPT' && child.tagName !== 'STYLE' && child.id !== 'main-watchdog-overlay') {
+//                     child.style.display = 'none';
+//                 }
+//             });
+//         }).catch(() => {});
+
+//         // 🔍 STEP 2: CHECK VIDEO STATUS & FORCE VISIBILITY
+//         const status = await videoContext.evaluate(() => {
+//             const bodyText = document.body.innerText.toLowerCase();
+//             if (bodyText.includes("stream error") || bodyText.includes("could not be loaded")) {
+//                 return 'CRITICAL_ERROR';
+//             }
+
+//             const v = document.querySelector('video[data-html5-video]') || document.querySelector('video');
+//             if (!v || v.ended) return 'DEAD';
+
+//             if (v.readyState < 2) return 'BUFFERING';
+
+//             // 🔥 MAGIC FIX: Force the video tag itself to be fully visible and on top
+//             v.style.position = 'fixed';
+//             v.style.top = '0';
+//             v.style.left = '0';
+//             v.style.width = '100vw';
+//             v.style.height = '100vh';
+//             v.style.zIndex = '2147483647';
+//             v.style.backgroundColor = 'black';
+//             v.style.objectFit = 'contain';
+//             v.style.opacity = '1';
+//             v.style.visibility = 'visible';
+//             v.style.display = 'block';
+
+//             return 'HEALTHY';
+//         }).catch(() => 'EVAL_ERROR');
+
+//         // 🛑 STEP 3: BUFFERING OVERLAY
+//         if (status === 'BUFFERING') {
+//             await page.evaluate(() => {
+//                 let overlay = document.getElementById('main-watchdog-overlay');
+//                 if (!overlay) {
+//                     overlay = document.createElement('div');
+//                     overlay.id = 'main-watchdog-overlay';
+//                     overlay.innerHTML = '<h1 style="color:white; font-family:sans-serif;">Stream is buffering... Please wait!</h1>';
+//                     overlay.style.position = 'fixed';
+//                     overlay.style.top = '0';
+//                     overlay.style.left = '0';
+//                     overlay.style.width = '100vw';
+//                     overlay.style.height = '100vh';
+//                     overlay.style.backgroundColor = 'black';
+//                     overlay.style.zIndex = '2147483647'; 
+//                     overlay.style.display = 'flex';
+//                     overlay.style.alignItems = 'center';
+//                     overlay.style.justifyContent = 'center';
+//                     document.body.appendChild(overlay);
+//                 }
+//             }).catch(() => {});
+
+//             bufferCounter++;
+//             if (bufferCounter > 15) throw new Error("Video stuck in buffering for too long.");
+//         } else {
+//             await page.evaluate(() => {
+//                 let existingOverlay = document.getElementById('main-watchdog-overlay');
+//                 if (existingOverlay) existingOverlay.remove();
+//             }).catch(() => {});
+//             bufferCounter = 0; 
+//         }
+
+//         if (status === 'CRITICAL_ERROR' || status === 'DEAD') {
+//             console.log('\n[!] ❌ STREAM DEAD DETECTED! Restarting process...');
+//             throw new Error("Watchdog detected video dead."); 
+//         }
+
+//         await new Promise(r => setTimeout(r, 3000)); 
+//     }
+// }
+
+// async function cleanup() {
+//     if (ffmpegProcess) {
+//         try { ffmpegProcess.stdin.end(); ffmpegProcess.kill('SIGKILL'); } catch (e) { }
+//         ffmpegProcess = null;
+//     }
+//     if (browser) {
+//         try { await browser.close(); } catch (e) { }
+//         browser = null;
+//     }
+// }
+
+// process.on('SIGINT', async () => {
+//     console.log('\n[*] Stopping live script cleanly...');
+//     await cleanup();
+//     process.exit(0);
+// });
+
+// // =========================================================================
+// // ⏱️ AUTO-OVERLAP TRIGGER (Runs exactly after 5h 50m)
+// // =========================================================================
+// setTimeout(async () => {
+//     console.log("\n[*] 5h 50m completed! Triggering next action for overlap...");
+//     const repo = process.env.GITHUB_REPOSITORY;
+//     const token = process.env.GH_PAT;
+//     const ref = process.env.GITHUB_REF_NAME || 'main';
+    
+//     const workflowFileName = 'main.yml'; 
+
+//     if (!repo || !token) {
+//         console.log("[!] GitHub Token (GH_PAT) ya Repo data nahi mila. Auto-trigger skip kar raha hu.");
+//         return;
+//     }
+
+//     try {
+//         const response = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflowFileName}/dispatches`, {
+//             method: 'POST',
+//             headers: {
+//                 'Accept': 'application/vnd.github.v3+json',
+//                 'Authorization': `token ${token}`
+//             },
+//             body: JSON.stringify({
+//                 ref: ref,
+//                 inputs: {
+//                     target_url: process.env.TARGET_URL,
+//                     okru_stream_channel: process.env.OKRU_STREAM_ID,
+//                     use_proxy: process.env.USE_PROXY,
+//                     stream_quality: process.env.STREAM_QUALITY
+//                 }
+//             })
+//         });
+
+//         if (response.ok) {
+//             console.log("[+] Next workflow run successfully triggered!");
+//         } else {
+//             console.error("[-] GitHub API error.");
+//         }
+//     } catch (err) {}
+// }, 21000000); 
+
+// mainLoop();
 
 
 
