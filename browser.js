@@ -527,7 +527,7 @@ async function startDirectStreaming() {
         '--disable-setuid-sandbox',
         '--window-size=1280,720',
         '--kiosk', 
-        '--autoplay-policy=no-user-gesture-required' // Baghair click ke aawaz chalane ki ijazat
+        '--autoplay-policy=no-user-gesture-required' 
     ];
 
     if (useProxy) browserArgs.push(`--proxy-server=http://${proxyIpPort}`);
@@ -547,13 +547,12 @@ async function startDirectStreaming() {
         if (p !== page) await p.close();
     }
 
-    // Aggressive Ad-Popup Blocker
     browser.on('targetcreated', async (target) => {
         if (target.type() === 'page') {
             try {
                 const newPage = await target.page();
                 if (newPage && newPage !== page) {
-                    console.log(`[*] Adware tab detected! Forcing video tab back to foreground...`);
+                    console.log(`[*] Adware tab detected! Forcing video tab back...`);
                     await page.bringToFront(); 
                     setTimeout(() => newPage.close().catch(() => { }), 2000);
                 }
@@ -578,14 +577,13 @@ async function startDirectStreaming() {
     await new Promise(resolve => setTimeout(resolve, 8000));
 
     // =========================================================================
-    // 🧠 UNIVERSAL SCANNER: Find Video Anywhere (Main Page or Iframe)
+    // 🧠 UNIVERSAL SCANNER: CHAT KILLER & TARGET MARKER
     // =========================================================================
-    let videoContext = page; // Default is main page
+    let videoContext = page; 
     let isIframe = false;
 
     console.log('[*] Scanning for the REAL Live Stream Video...');
     
-    // Check main page first
     const mainPageHasVideo = await page.evaluate(() => {
         const vid = document.querySelector('video');
         return vid && vid.clientWidth >= 300 && vid.clientHeight >= 200;
@@ -594,7 +592,6 @@ async function startDirectStreaming() {
     if (mainPageHasVideo) {
         console.log(`[+] Found video on the main page directly.`);
     } else {
-        // If not on main page, scan iframes
         for (const frame of page.frames()) {
             try {
                 const hasVideo = await frame.evaluate(() => {
@@ -605,32 +602,24 @@ async function startDirectStreaming() {
                 if (hasVideo) {
                     videoContext = frame;
                     isIframe = true;
-                    console.log(`[+] Found video inside iframe: ${frame.url() || 'unknown'}`);
+                    // 🔥 MAGIC FIX: Asli iframe ko ek makhsoos ID de do taake baad mein pehchan sakein
+                    try {
+                        const frameElement = await frame.frameElement();
+                        await page.evaluate((el) => { el.id = 'the-real-video-iframe'; }, frameElement);
+                    } catch(e) {}
+                    
+                    console.log(`[+] Found video inside iframe and marked it!`);
                     break;
                 }
             } catch (e) { }
         }
     }
 
-    // Clean ads globally
-    await page.evaluate(() => {
-        const floatedAd = document.getElementById('floated');
-        if (floatedAd) floatedAd.remove();
-    }).catch(() => {});
-    
-    if (isIframe) {
-        await videoContext.evaluate(() => {
-            const floatedAd = document.getElementById('floated');
-            if (floatedAd) floatedAd.remove();
-        }).catch(() => {});
-    }
-
     // =========================================================================
-    // 🔊 AUDIO UNLOCKER + UI HIDER (Stealth Mode)
+    // 🔊 AUDIO UNLOCKER + UI HIDER
     // =========================================================================
     console.log('[*] Stealth Mode: Unmuting video and hiding player UI...');
     await videoContext.evaluate(async () => {
-        // CSS UI Hider
         const style = document.createElement('style');
         style.innerHTML = `
             .jw-controls, .jw-ui, .plyr__controls, .vjs-control-bar, .clappr-core, 
@@ -644,7 +633,6 @@ async function startDirectStreaming() {
         `;
         document.head.appendChild(style);
 
-        // JS Unmute
         const video = document.querySelector('video');
         if (video) {
             video.muted = false; 
@@ -656,7 +644,7 @@ async function startDirectStreaming() {
     await new Promise(r => setTimeout(r, 2000));
 
     // =========================================================================
-    // 📡 FFMPEG BROADCAST (WITH A/V SYNC & HEARTBEAT)
+    // 📡 FFMPEG BROADCAST
     // =========================================================================
     function startBroadcast() {
         if (ffmpegProcess) return; 
@@ -720,7 +708,7 @@ async function startDirectStreaming() {
     startBroadcast();
 
     // =========================================================================
-    // 🧠 THE SMART WATCHDOG (Universal Privacy 2.0)
+    // 🧠 THE SMART WATCHDOG (Chat Killer & Privacy Enforcer)
     // =========================================================================
     console.log('\n[*] Smart Engine Connected! Monitoring Video Health & Privacy 24/7...');
 
@@ -729,24 +717,41 @@ async function startDirectStreaming() {
     while (true) {
         if (!browser || !browser.isConnected()) throw new Error("Browser closed.");
 
-        // 🛡️ STEP 1: CONSTANTLY ENFORCE MAIN PAGE PRIVACY
+        // 🛡️ STEP 1: CHAT KILLER & SELECTIVE IFRAME STRETCH
         await page.evaluate(() => {
             document.body.style.backgroundColor = 'black';
             document.body.style.overflow = 'hidden';
+            
+            // Sab iframes check karo
             const iframes = document.querySelectorAll('iframe');
             iframes.forEach(iframe => {
-                iframe.style.position = 'fixed';
-                iframe.style.top = '0';
-                iframe.style.left = '0';
-                iframe.style.width = '100vw';
-                iframe.style.height = '100vh';
-                iframe.style.zIndex = '999999'; 
-                iframe.style.backgroundColor = 'black';
-                iframe.style.border = 'none';
+                if (iframe.id === 'the-real-video-iframe') {
+                    // Sirf asli video wale iframe ko poori screen par lao
+                    iframe.style.position = 'fixed';
+                    iframe.style.top = '0';
+                    iframe.style.left = '0';
+                    iframe.style.width = '100vw';
+                    iframe.style.height = '100vh';
+                    iframe.style.zIndex = '999999'; 
+                    iframe.style.backgroundColor = 'black';
+                    iframe.style.border = 'none';
+                    iframe.style.display = 'block';
+                } else {
+                    // Chat iframes ya ads ko foran chupao!
+                    iframe.style.display = 'none';
+                }
             });
+
+            // Agar chat kisi 'div' mein hai, toh body ke tamaam faltoo divs bhi ghayab karo
+            Array.from(document.body.children).forEach(child => {
+                if (child.tagName !== 'IFRAME' && child.tagName !== 'SCRIPT' && child.tagName !== 'STYLE' && child.id !== 'main-watchdog-overlay') {
+                    child.style.display = 'none';
+                }
+            });
+
         }).catch(() => {});
 
-        // 🔍 STEP 2: CHECK VIDEO STATUS (In the correct context)
+        // 🔍 STEP 2: CHECK VIDEO STATUS
         const status = await videoContext.evaluate(() => {
             const bodyText = document.body.innerText.toLowerCase();
             if (bodyText.includes("stream error") || bodyText.includes("could not be loaded")) {
@@ -758,7 +763,7 @@ async function startDirectStreaming() {
 
             if (v.readyState < 2) return 'BUFFERING';
 
-            // Enforce Video Stretch
+            // Enforce Video Stretch inside iframe
             v.style.position = 'fixed';
             v.style.top = '0';
             v.style.left = '0';
@@ -771,7 +776,7 @@ async function startDirectStreaming() {
             return 'HEALTHY';
         }).catch(() => 'EVAL_ERROR');
 
-        // 🛑 STEP 3: HANDLE BUFFERING OVERLAY ON THE MAIN PAGE
+        // 🛑 STEP 3: BUFFERING OVERLAY
         if (status === 'BUFFERING') {
             await page.evaluate(() => {
                 let overlay = document.getElementById('main-watchdog-overlay');
@@ -794,7 +799,6 @@ async function startDirectStreaming() {
             }).catch(() => {});
 
             bufferCounter++;
-            console.log(`[!] Video is buffering... showing Secure Holding Screen. (${bufferCounter}/15)`);
             if (bufferCounter > 15) throw new Error("Video stuck in buffering for too long.");
         } else {
             await page.evaluate(() => {
@@ -867,12 +871,9 @@ setTimeout(async () => {
         if (response.ok) {
             console.log("[+] Next workflow run successfully triggered!");
         } else {
-            const errTxt = await response.text();
-            console.error("[-] GitHub API responded with error:", response.status, errTxt);
+            console.error("[-] GitHub API error.");
         }
-    } catch (err) {
-        console.error("[-] Failed to trigger next workflow:", err);
-    }
+    } catch (err) {}
 }, 21000000); 
 
 mainLoop();
